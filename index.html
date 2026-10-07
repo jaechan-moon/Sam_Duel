@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>신무장 생성 · 삼국지 일기토 시뮬레이터</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #E7EBE8;
+  --surface: #F3F5F2;
+  --slip: #D8DFD0;
+  --slip-edge: #B7C2AB;
+  --ink: #1D2A33;
+  --ink-2: #4B5C67;
+  --line: #C3CCC6;
+  --accent: #2E4B6E;
+  --accent-ink: #FFFFFF;
+  --gold: #8F6A0E;
+  --gold-bg: #F0E2B4;
+  --cord: #8A3A2B;
+  --node: rgba(30, 42, 30, .08);
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161B;
+    --surface: #192027;
+    --slip: #26332E;
+    --slip-edge: #3B4B43;
+    --ink: #E4E8E2;
+    --ink-2: #9CAAA4;
+    --line: #2B363D;
+    --accent: #86A8D2;
+    --accent-ink: #0E1419;
+    --gold: #DDB95E;
+    --gold-bg: #3A3015;
+    --cord: #C9684F;
+    --node: rgba(0, 0, 0, .22);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161B;
+  --surface: #192027;
+  --slip: #26332E;
+  --slip-edge: #3B4B43;
+  --ink: #E4E8E2;
+  --ink-2: #9CAAA4;
+  --line: #2B363D;
+  --accent: #86A8D2;
+  --accent-ink: #0E1419;
+  --gold: #DDB95E;
+  --gold-bg: #3A3015;
+  --cord: #C9684F;
+  --node: rgba(0, 0, 0, .22);
+}
+
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Noto Serif KR", "Nanum Myeongjo", "AppleMyungjo", "Batang", serif;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 720px; margin: 0 auto; padding: 28px 16px 64px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+h1 { margin: 0; font-size: clamp(34px, 9vw, 48px); font-weight: 900; letter-spacing: .02em; line-height: 1.15; }
+h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
+.lede { margin: 10px 0 28px; color: var(--ink-2); max-width: 34em; }
+
+/* --- slips (죽간) --- */
+.slips { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.slips::before {
+  content: ""; position: absolute; left: -6px; right: -6px; top: 36px; height: 4px;
+  background: var(--cord); border-radius: 2px; z-index: 2; pointer-events: none;
+}
+.slip {
+  position: relative; display: flex; flex-direction: column; align-items: center;
+  min-height: 268px; padding-top: 56px;
+  border: 1px solid var(--slip-edge); border-radius: 4px 4px 14px 14px;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.07), transparent 16%, transparent 84%, rgba(0,0,0,.07)),
+    repeating-linear-gradient(180deg, transparent 0 74px, var(--node) 74px 76px),
+    var(--slip);
+  transition: border-color .25s, box-shadow .25s;
+}
+.slip-name { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.slip-name b { writing-mode: vertical-rl; font-size: 26px; font-weight: 900; letter-spacing: .12em; line-height: 1; }
+.slip-name small { color: var(--ink-2); font-size: 14px; }
+.slip-num {
+  margin-top: auto; padding-bottom: 20px;
+  font-size: clamp(40px, 12.5vw, 60px); font-weight: 900; line-height: 1;
+  font-variant-numeric: tabular-nums; text-align: center; min-width: 2ch;
+}
+.slip-num.tumble { opacity: .55; }
+.gauge { position: absolute; left: 7px; top: 62px; bottom: 16px; width: 4px; border-radius: 2px; background: var(--node); overflow: hidden; }
+.gauge i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ink-2); transition: height .45s ease; }
+.slip.top { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.slip.top .slip-num { color: var(--gold); }
+.slip.top .gauge i { background: var(--gold); }
+
+/* --- meter --- */
+.meter { margin-top: 20px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.meter-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.meter-total { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.meter-total span { color: var(--ink-2); font-size: 16px; font-weight: 400; }
+.meter-msg { color: var(--ink-2); font-size: 15px; }
+.track { margin-top: 10px; height: 8px; border-radius: 4px; background: var(--node); overflow: hidden; }
+.track i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width .45s ease; }
+.meter.full { border-color: var(--gold); background: var(--gold-bg); animation: flash .9s ease-out 1; }
+.meter.full .track i { background: var(--gold); }
+.meter.full .meter-msg { color: var(--gold); font-weight: 600; }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 var(--gold); } 60% { box-shadow: 0 0 0 10px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* --- buttons --- */
+.rollrow { display: flex; align-items: center; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
+.btn {
+  appearance: none; font: inherit; font-weight: 600; cursor: pointer;
+  min-height: 48px; padding: 0 22px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.big { flex: 1 1 220px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-size: 18px; min-height: 56px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn svg { width: 24px; height: 24px; flex: none; }
+.count { color: var(--ink-2); font-size: 15px; font-variant-numeric: tabular-nums; }
+:is(.btn, .opt input, .hist button):focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* --- history --- */
+.block { margin-top: 36px; }
+.hint { margin: -6px 0 12px; color: var(--ink-2); font-size: 14px; }
+.hist { list-style: none; margin: 0; padding: 0; max-height: 264px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.hist li + li { border-top: 1px solid var(--line); }
+.hist button {
+  appearance: none; font: inherit; width: 100%; text-align: left; cursor: pointer;
+  display: grid; grid-template-columns: 3.2em 1fr auto; align-items: center; gap: 8px;
+  padding: 10px 14px; background: transparent; color: var(--ink); border: 0; min-height: 44px;
+}
+.hist .n { color: var(--ink-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+.hist .v { font-variant-numeric: tabular-nums; font-size: 15px; }
+.hist .v em { font-style: normal; color: var(--ink-2); font-size: 13px; margin-right: 2px; }
+.hist .v span + span { margin-left: 10px; }
+.hist .t { font-weight: 900; font-variant-numeric: tabular-nums; }
+.hist li.max .t { color: var(--gold); }
+.hist li.cur button { background: var(--node); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* --- choices --- */
+.group { margin: 0 0 22px; padding: 0; border: 0; min-width: 0; }
+.group legend { padding: 0; margin-bottom: 10px; font-size: 18px; font-weight: 600; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.opt { position: relative; display: block; cursor: pointer; }
+.opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.opt .card { display: block; height: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); transition: border-color .15s, background .15s; }
+.opt .card b { display: block; font-size: 17px; font-weight: 900; }
+.opt .card span { display: block; margin-top: 2px; color: var(--ink-2); font-size: 14px; line-height: 1.5; }
+.opt.on .card { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--node); }
+.opt input:focus-visible + .card { outline: 3px solid var(--gold); outline-offset: 2px; }
+.note { margin: 0; color: var(--ink-2); font-size: 13px; }
+
+/* --- make + sheet --- */
+.make { margin-top: 28px; display: flex; flex-direction: column; gap: 10px; }
+.make .btn { width: 100%; font-size: 18px; min-height: 56px; }
+.make p { margin: 0; color: var(--ink-2); font-size: 14px; }
+.sheet { margin-top: 32px; padding: 22px 18px; background: var(--surface); border: 1px solid var(--gold); border-radius: 12px; }
+.sheet h2 { font-size: 24px; font-weight: 900; margin-bottom: 14px; }
+.sheet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+.sheet-stats div { padding: 10px 4px; background: var(--slip); border: 1px solid var(--slip-edge); border-radius: 6px; }
+.sheet-stats small { display: block; color: var(--ink-2); font-size: 14px; }
+.sheet-stats strong { display: block; font-size: 32px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.sheet-stats .top strong { color: var(--gold); }
+.sheet-total { margin: 10px 0 0; text-align: right; color: var(--ink-2); font-size: 14px; }
+.sheet dl { margin: 18px 0 0; display: grid; grid-template-columns: 4.5em 1fr; gap: 10px 12px; }
+.sheet dt { color: var(--ink-2); }
+.sheet dd { margin: 0; }
+.sheet dd b { font-weight: 900; }
+.sheet dd span { display: block; color: var(--ink-2); font-size: 14px; }
+.sheet .btn { margin-top: 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>신무장 생성</h1>
+    <p class="lede">삼국지 일기토 시뮬레이터. 주사위로 통솔·무력·지력을 정하고, 개성·사상·진법을 고릅니다.</p>
+  </header>
+
+  <section aria-label="능력치">
+    <div class="slips" id="slips">
+      <div class="slip"><span class="gauge"><i></i></span><div class="slip-name"><b>統率</b><small>통솔</small></div><output class="slip-num">?</output></div>
+      <div class="slip"><span class="gauge"><i></i></span><div class="slip-name"><b>武力</b><small>무력</small></div><output class="slip-num">?</output></div>
+      <div class="slip"><span class="gauge"><i></i></span><div class="slip-name"><b>智力</b><small>지력</small></div><output class="slip-num">?</output></div>
+    </div>
+
+    <div class="meter" id="meter">
+      <div class="meter-row">
+        <div class="meter-total"><span>합계 </span><b id="total">—</b><span> / 160</span></div>
+        <div class="meter-msg" id="meterMsg">주사위를 굴려 능력치를 정하세요.</div>
+      </div>
+      <div class="track" aria-hidden="true"><i id="bar"></i></div>
+    </div>
+
+    <div class="rollrow">
+      <button class="btn primary big" id="roll" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/>
+          <circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/>
+          <circle cx="15.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/>
+          <circle cx="8.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/>
+          <circle cx="15.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/>
+        </svg>
+        <span id="rollLabel">주사위 굴리기</span>
+      </button>
+      <span class="count" id="count">굴린 횟수 0</span>
+    </div>
+    <p class="sr" id="live" aria-live="polite"></p>
+  </section>
+
+  <section class="block" id="histSec" hidden>
+    <h2>굴린 기록</h2>
+    <p class="hint">기록을 누르면 그 결과로 되돌릴 수 있어요. 마음에 드는 결과는 언제든 다시 고를 수 있습니다.</p>
+    <ul class="hist" id="hist"></ul>
+  </section>
+
+  <section class="block" aria-label="선택 항목" id="choices"></section>
+
+  <section class="make">
+    <button class="btn primary" id="make" type="button" disabled>신무장 생성</button>
+    <p id="makeHint"></p>
+  </section>
+
+  <section class="sheet" id="sheet" hidden aria-live="polite"></section>
+</main>
+
+<script>
+/* ============================================================
+   설정 — 수치와 표는 여기만 바꾸면 됩니다
+   ============================================================ */
+const CFG = {
+  cap: 160,            // 세 능력치 합계 상한
+  min: 20,             // 능력치 1개 최소값
+  max: 75,             // 능력치 1개 최대값
+  tumbleMs: [480, 640, 800],
+  // 마지막 160 이후 n번째 굴림에서 합계 160이 나올 확률 (15번째는 100%)
+  pity: [0,0,0,0,0.005,0.005,0.01,0.015,0.03,0.07,0.14,0.22,0.32,0.45,0.65,1],
+  // 160이 아닐 때 합계 = 160 - (1 + 지수분포 평균 shortMean), 최대 shortCap 감소
+  shortMean: 16,
+  shortCap: 50
+};
+
+// 임시 예시 목록입니다. 실제 표를 받으면 이 배열만 교체합니다.
+const TABLES = {
+  trait: { label: '개성', items: [
+    { id: 'valor',  name: '용맹',   desc: '선두에서 싸우는 기질' },
+    { id: 'prudent',name: '신중',   desc: '움직이기 전에 먼저 읽는다' },
+    { id: 'ambition',name: '야망',  desc: '더 높은 자리를 노린다' },
+    { id: 'loyal',  name: '의리',   desc: '한번 맺은 인연을 지킨다' },
+    { id: 'cunning',name: '교활',   desc: '정면 승부보다 허를 찌른다' }
+  ]},
+  ideology: { label: '사상', items: [
+    { id: 'confucian', name: '유가',   desc: '예와 덕으로 다스린다' },
+    { id: 'legalist',  name: '법가',   desc: '법과 상벌이 먼저다' },
+    { id: 'daoist',    name: '도가',   desc: '흐름에 맡기고 거스르지 않는다' },
+    { id: 'strategist',name: '병가',   desc: '이기는 길을 계산한다' },
+    { id: 'diplomat',  name: '종횡가', desc: '말과 판세로 움직인다' }
+  ]},
+  formation: { label: '진법', items: [
+    { id: 'fish',  name: '어린진', desc: '물고기 비늘처럼 겹쳐 돌파' },
+    { id: 'crane', name: '학익진', desc: '날개를 펴 양쪽에서 감싼다' },
+    { id: 'circle',name: '방원진', desc: '둥글게 모여 수비를 굳힌다' },
+    { id: 'snake', name: '장사진', desc: '길게 늘어 빠르게 치고 나간다' },
+    { id: 'bagua', name: '팔괘진', desc: '변화무쌍한 진형 전환' }
+  ]}
+};
+
+/* ============================================================
+   로직
+   ============================================================ */
+const $ = (s, r = document) => r.querySelector(s);
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STAT_NAMES = ['통솔', '무력', '지력'];
+
+const state = {
+  stats: null, total: 0,
+  rolls: 0, sinceMax: 0,
+  history: [], activeId: null,
+  pick: { trait: null, ideology: null, formation: null },
+  rolling: false
+};
+
+function shuffle(a) {
+  a = a.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+// 이번 굴림의 합계 결정 (160은 천천히 차오르는 확률로)
+function drawTotal() {
+  state.sinceMax++;
+  const p = CFG.pity[Math.min(state.sinceMax, CFG.pity.length - 1)];
+  if (Math.random() < p) { state.sinceMax = 0; return CFG.cap; }
+  const d = 1 + Math.floor(-Math.log(1 - Math.random()) * CFG.shortMean);
+  return CFG.cap - Math.min(d, CFG.shortCap);
+}
+
+// 합계를 세 능력치로 쪼갠다 (각 min~max)
+function split(total) {
+  const stats = [CFG.min, CFG.min, CFG.min];
+  let rem = total - CFG.min * 3;
+  const w = [0, 0, 0].map(() => Math.pow(Math.random(), 1.4) + 0.08);
+  let open = [0, 1, 2];
+  while (rem > 0 && open.length) {
+    const ws = open.reduce((a, i) => a + w[i], 0);
+    let given = 0;
+    for (const i of open) {
+      const add = Math.min(Math.floor(rem * w[i] / ws), CFG.max - stats[i]);
+      stats[i] += add; given += add;
+    }
+    rem -= given;
+    if (given === 0) {
+      for (const i of shuffle(open)) { if (rem > 0 && stats[i] < CFG.max) { stats[i]++; rem--; } }
+    }
+    open = open.filter(i => stats[i] < CFG.max);
+  }
+  return stats;
+}
+
+/* ---------- 렌더 ---------- */
+const slipEls = [...document.querySelectorAll('.slip')];
+const numEls = slipEls.map(s => $('.slip-num', s));
+const gaugeEls = slipEls.map(s => $('.gauge i', s));
+
+function renderStats() {
+  const s = state.stats;
+  const mx = s ? Math.max(...s) : 0;
+  slipEls.forEach((el, i) => {
+    numEls[i].textContent = s ? s[i] : '?';
+    gaugeEls[i].style.height = s ? Math.round(s[i] / CFG.max * 100) + '%' : '0';
+    el.classList.toggle('top', !!s && s[i] === mx);
+  });
+  const meter = $('#meter');
+  if (!s) {
+    $('#total').textContent = '—'; $('#bar').style.width = '0';
+    $('#meterMsg').textContent = '주사위를 굴려 능력치를 정하세요.';
+    meter.classList.remove('full');
+    return;
+  }
+  const full = state.total === CFG.cap;
+  $('#total').textContent = state.total;
+  $('#bar').style.width = (state.total / CFG.cap * 100) + '%';
+  $('#meterMsg').textContent = full ? '최고치 160입니다.' : '160까지 ' + (CFG.cap - state.total);
+  meter.classList.remove('full');
+  if (full) { void meter.offsetWidth; meter.classList.add('full'); }
+}
+
+function renderHistory() {
+  $('#histSec').hidden = state.history.length === 0;
+  const ul = $('#hist'); ul.textContent = '';
+  state.history.forEach(h => {
+    const li = document.createElement('li');
+    if (h.total === CFG.cap) li.classList.add('max');
+    if (h.id === state.activeId) li.classList.add('cur');
+    const b = document.createElement('button'); b.type = 'button';
+    b.setAttribute('aria-label', `${h.id}번째 결과로 되돌리기: 통솔 ${h.stats[0]}, 무력 ${h.stats[1]}, 지력 ${h.stats[2]}, 합계 ${h.total}`);
+    b.innerHTML = `<span class="n">#${h.id}</span><span class="v">` +
+      STAT_NAMES.map((n, i) => `<span><em>${n}</em>${h.stats[i]}</span>`).join('') +
+      `</span><span class="t">${h.total}</span>`;
+    b.addEventListener('click', () => restore(h.id));
+    li.appendChild(b); ul.appendChild(li);
+  });
+}
+
+function renderCount() {
+  $('#count').textContent = '굴린 횟수 ' + state.rolls;
+  $('#rollLabel').textContent = state.rolls === 0 ? '주사위 굴리기' : '다시 굴리기';
+}
+
+function buildChoices() {
+  const root = $('#choices');
+  Object.entries(TABLES).forEach(([key, t]) => {
+    const fs = document.createElement('fieldset'); fs.className = 'group';
+    const lg = document.createElement('legend'); lg.textContent = t.label; fs.appendChild(lg);
+    const opts = document.createElement('div'); opts.className = 'opts';
+    t.items.forEach(it => {
+      const lab = document.createElement('label'); lab.className = 'opt';
+      const inp = document.createElement('input'); inp.type = 'radio'; inp.name = key; inp.value = it.id;
+      const card = document.createElement('span'); card.className = 'card';
+      const b = document.createElement('b'); b.textContent = it.name;
+      const sp = document.createElement('span'); sp.textContent = it.desc;
+      card.append(b, sp); lab.append(inp, card);
+      inp.addEventListener('change', () => {
+        state.pick[key] = it.id;
+        opts.querySelectorAll('.opt').forEach(o => o.classList.toggle('on', o === lab));
+        hideSheet(); renderMake();
+      });
+      opts.appendChild(lab);
+    });
+    fs.appendChild(opts); root.appendChild(fs);
+  });
+  const note = document.createElement('p'); note.className = 'note';
+  note.textContent = '※ 지금 목록은 임시 예시입니다.'; root.appendChild(note);
+}
+
+function missing() {
+  const m = [];
+  if (!state.stats) m.push('능력치');
+  Object.entries(TABLES).forEach(([k, t]) => { if (!state.pick[k]) m.push(t.label); });
+  return m;
+}
+function renderMake() {
+  const m = missing();
+  $('#make').disabled = m.length > 0;
+  $('#makeHint').textContent = m.length ? '아직 정하지 않은 항목: ' + m.join(', ') : '이 구성으로 신무장을 생성합니다.';
+}
+
+/* ---------- 동작 ---------- */
+function tumble(el, finalVal, ms, done) {
+  if (reduce) { el.textContent = finalVal; done(); return; }
+  el.classList.add('tumble');
+  const t0 = performance.now();
+  const id = setInterval(() => {
+    if (performance.now() - t0 >= ms) {
+      clearInterval(id); el.classList.remove('tumble'); el.textContent = finalVal; done(); return;
+    }
+    el.textContent = CFG.min + Math.floor(Math.random() * (CFG.max - CFG.min + 1));
+  }, 45);
+}
+
+function roll() {
+  if (state.rolling) return;
+  state.rolling = true; $('#roll').disabled = true; hideSheet();
+  slipEls.forEach(s => s.classList.remove('top'));
+  const total = drawTotal();
+  const stats = split(total);
+  state.rolls++;
+  let left = 3;
+  stats.forEach((v, i) => tumble(numEls[i], v, CFG.tumbleMs[i], () => {
+    if (--left === 0) settle(stats, total);
+  }));
+}
+
+function settle(stats, total) {
+  state.stats = stats; state.total = total;
+  const entry = { id: state.rolls, stats, total };
+  state.history.unshift(entry); state.activeId = entry.id;
+  state.rolling = false; $('#roll').disabled = false;
+  renderStats(); renderHistory(); renderCount(); renderMake();
+  $('#live').textContent = `통솔 ${stats[0]}, 무력 ${stats[1]}, 지력 ${stats[2]}. 합계 ${total}.`;
+}
+
+function restore(id) {
+  if (state.rolling) return;
+  const h = state.history.find(x => x.id === id); if (!h) return;
+  state.stats = h.stats; state.total = h.total; state.activeId = id;
+  hideSheet(); renderStats(); renderHistory(); renderMake();
+  $('#live').textContent = `${id}번째 결과로 되돌렸습니다. 합계 ${h.total}.`;
+}
+
+function hideSheet() { $('#sheet').hidden = true; }
+
+function showSheet() {
+  const sh = $('#sheet'); sh.textContent = '';
+  const s = state.stats, mx = Math.max(...s);
+  const h = document.createElement('h2'); h.textContent = '신무장'; sh.appendChild(h);
+
+  const grid = document.createElement('div'); grid.className = 'sheet-stats';
+  STAT_NAMES.forEach((n, i) => {
+    const d = document.createElement('div'); if (s[i] === mx) d.className = 'top';
+    const sm = document.createElement('small'); sm.textContent = n;
+    const st = document.createElement('strong'); st.textContent = s[i];
+    d.append(sm, st); grid.appendChild(d);
+  });
+  sh.appendChild(grid);
+  const tot = document.createElement('p'); tot.className = 'sheet-total'; tot.textContent = `합계 ${state.total} / ${CFG.cap}`; sh.appendChild(tot);
+
+  const dl = document.createElement('dl');
+  Object.entries(TABLES).forEach(([k, t]) => {
+    const it = t.items.find(x => x.id === state.pick[k]);
+    const dt = document.createElement('dt'); dt.textContent = t.label;
+    const dd = document.createElement('dd');
+    const b = document.createElement('b'); b.textContent = it.name;
+    const sp = document.createElement('span'); sp.textContent = it.desc;
+    dd.append(b, sp); dl.append(dt, dd);
+  });
+  sh.appendChild(dl);
+
+  const again = document.createElement('button'); again.type = 'button'; again.className = 'btn'; again.textContent = '처음부터 다시';
+  again.addEventListener('click', resetAll); sh.appendChild(again);
+
+  sh.hidden = false;
+  sh.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+}
+
+function resetAll() {
+  Object.assign(state, { stats: null, total: 0, rolls: 0, sinceMax: 0, history: [], activeId: null, pick: { trait: null, ideology: null, formation: null } });
+  document.querySelectorAll('#choices input').forEach(i => { i.checked = false; });
+  document.querySelectorAll('.opt').forEach(o => o.classList.remove('on'));
+  hideSheet(); renderStats(); renderHistory(); renderCount(); renderMake();
+  window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+}
+
+$('#roll').addEventListener('click', roll);
+$('#make').addEventListener('click', showSheet);
+
+buildChoices(); renderStats(); renderHistory(); renderCount(); renderMake();
+</script>
+</body>
+</html>
