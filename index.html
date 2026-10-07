@@ -205,6 +205,38 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 .tr-card dt { color: var(--ink-2); }
 .tr-card dd { margin: 0; font-variant-numeric: tabular-nums; }
 
+/* --- 일기토 --- */
+.mcard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.fz { text-align: center; min-width: 0; }
+.fz .face { width: 64px; height: 64px; margin: 0 auto 6px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: var(--node); border: 1px solid var(--line); font-weight: 900; font-size: 26px; }
+.fz .face img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.fz.me .face { border-color: var(--gold); }
+.fz b { display: block; font-size: 18px; font-weight: 900; overflow-wrap: anywhere; }
+.fz small { display: block; color: var(--ink-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.vs { font-weight: 900; font-size: 20px; color: var(--cord); letter-spacing: .05em; }
+.hpbar { height: 10px; margin-top: 8px; background: var(--node); border-radius: 5px; overflow: hidden; }
+.hpbar i { display: block; height: 100%; width: 100%; background: var(--accent); transition: width .35s ease; }
+.fz.me .hpbar i { background: var(--gold); }
+.hpnum { font-variant-numeric: tabular-nums; font-size: 14px; margin-top: 2px; }
+.fz.hurt .face { animation: hurt .35s ease-out 1; }
+@keyframes hurt { 0%,100% { transform: none; } 25% { transform: translateX(-4px); background: var(--cord); } 60% { transform: translateX(3px); } }
+.bt-ctrl { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.bt-log { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.bt-log li { padding: 6px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; animation: rise .25s ease-out 1; }
+.bt-log li.foe { color: var(--ink-2); }
+.bt-log li.big { border-color: var(--gold); background: var(--gold-bg); color: var(--ink); font-weight: 700; }
+.bt-result { margin: 14px 0; padding: 18px; border-radius: 12px; text-align: center; border: 1px solid var(--line); background: var(--surface); }
+.bt-result h2 { margin: 0 0 4px; font-size: 26px; font-weight: 900; }
+.bt-result.win { border-color: var(--gold); background: var(--gold-bg); }
+.bt-result.win h2 { color: var(--gold); }
+.bt-result.lose h2 { color: var(--cord); }
+.bt-result p { margin: 0; color: var(--ink-2); }
+.others { margin-top: 14px; }
+.others summary { cursor: pointer; color: var(--ink-2); padding: 6px 0; }
+.others ul { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14px; }
+.others li { padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.others li b { font-weight: 900; }
+
 /* --- make + sheet --- */
 .make { margin-top: 28px; display: flex; flex-direction: column; gap: 10px; }
 .make .btn { width: 100%; font-size: 18px; min-height: 56px; }
@@ -305,6 +337,13 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
   <section class="tr-log" id="trLog" aria-live="polite"></section>
   <div class="make" id="trNext"></div>
 </div>
+<div id="tourView" hidden>
+  <header>
+    <h1 id="tvTitle">일기토 대회</h1>
+    <p class="lede" id="tvLede"></p>
+  </header>
+  <section id="tvMain" aria-live="polite"></section>
+</div>
 </main>
 
 <script>
@@ -333,14 +372,100 @@ const CFG = {
   bonus: { big: 0.10, small: 0.05 }  // 사상 보정(확률 더하기): 상승 / 소폭 상승
 };
 
+/* ============================================================
+   일기토 설정 (BATTLE) / 대회 설정 (TOUR)
+   ============================================================ */
+const BATTLE = {
+  hp: 100,              // 시작 체력
+  tick: 1.2,            // 공격 간격(초). 두 장수가 동시에 공격
+  timeLimit: 30,        // 시간 제한(초). 넘으면 남은 체력이 많은 쪽 승리
+  baseDmg: 8,           // 기본 피해
+  statCoef: 0.007,      // 피해 배율 = 1 + (내 무력 - 상대 통솔) × statCoef
+  dmgMin: 0.4, dmgMax: 1.8,
+  dmgVar: 0.15,         // 피해 랜덤 편차 ±15%
+  evade: 0.15,          // 회피 = evade + (지력-50) × intCoef
+  crit: 0.10,           // 치명타 = crit + (지력-50) × intCoef
+  intCoef: 0.004,
+  evadeMin: 0.02, evadeMax: 0.35,
+  critMin: 0.02,  critMax: 0.50,
+  critMult: 1.8,        // 치명타 배율
+  critMultHi: 3.0,      // 상급 치명타 배율 (돌격)
+  critDef: 0.20,        // 치명타 방어 확률
+  traitBase: 0.05,      // 개성 발동 = traitBase + (통솔+지력) × traitCoef
+  traitCoef: 0.0005,
+  chargeRate: 2,        // 돌격은 발동 확률 2배
+  buffSec: 5,           // 기합·맹공·감시 지속 시간(초)
+  opCoef: 0.001,        // 작전 발동(공격마다) = 지력 × opCoef, 경기당 1회
+  firstCoef: 0.01,      // 선제공격(전투 시작 시 1번) = 지력 × firstCoef
+  resolveGap: 40,       // 결사: 내 체력이 이만큼 이상 낮을 때
+  resolveRate: 0.30     // 결사: 조건 중 공격마다 발동 확률
+};
+const TOUR = {
+  rounds: ['32강', '16강', '8강', '4강', '결승'],
+  statBonus: [0, 3, 6],        // 대회 회차별 상대 능력치 3개 모두 +보정 (최대 100)
+  opChance: [0, 0.5, 1],       // 회차별 상대가 표의 작전을 사용할 확률
+  resolveSkipsNext: true,      // 결사로 이기면 다음 경기 부전패
+  endOnLoss: false             // true면 탈락 시 게임 종료
+};
+// 상대 장수 표 (NPC_Table.xlsx 기준): 이름 / 통솔·무력·지력 / 개성 / 작전. 대회마다 이 중 31명을 무작위로 뽑습니다
+const NPC_TABLE = [
+  { name: '관우', stats: [61, 63, 42], trait: 'valor', op: 'deathblow' },
+  { name: '장비', stats: [64, 79, 20], trait: 'charge', op: 'first' },
+  { name: '유비', stats: [44, 43, 44], trait: 'prudent', op: 'endure' },
+  { name: '조운', stats: [60, 63, 43], trait: 'assault', op: 'counter' },
+  { name: '마초', stats: [66, 76, 20], trait: 'assault', op: 'first' },
+  { name: '마대', stats: [55, 66, 20], trait: 'cunning', op: 'deathblow' },
+  { name: '위연', stats: [60, 63, 32], trait: 'iki', op: 'resolve' },
+  { name: '황충', stats: [55, 70, 29], trait: 'kiai', op: 'deathblow' },
+  { name: '하후연', stats: [62, 66, 24], trait: 'assault', op: 'first' },
+  { name: '하후돈', stats: [62, 64, 27], trait: 'iki', op: 'endure' },
+  { name: '악진', stats: [58, 64, 20], trait: 'charge', op: 'first' },
+  { name: '조인', stats: [66, 61, 24], trait: 'watch', op: 'endure' },
+  { name: '서황', stats: [60, 62, 34], trait: 'prudent', op: 'counter' },
+  { name: '장합', stats: [58, 59, 37], trait: 'cunning', op: 'lure' },
+  { name: '장료', stats: [62, 61, 45], trait: 'charge', op: 'first' },
+  { name: '여포', stats: [61, 83, 20], trait: 'valor', op: 'deathblow' },
+  { name: '위속', stats: [47, 55, 20], trait: 'cunning', op: 'lure' },
+  { name: '전위', stats: [56, 77, 20], trait: 'iki', op: 'resolve' },
+  { name: '허저', stats: [56, 90, 20], trait: 'kiai', op: 'first' },
+  { name: '우금', stats: [54, 44, 34], trait: 'watch', op: 'endure' },
+  { name: '감녕', stats: [55, 69, 31], trait: 'charge', op: 'first' },
+  { name: '주유', stats: [57, 33, 55], trait: 'cunning', op: 'lure' },
+  { name: '여몽', stats: [49, 44, 47], trait: 'watch', op: 'lure' },
+  { name: '태사자', stats: [57, 67, 31], trait: 'valor', op: 'first' },
+  { name: '황개', stats: [55, 57, 31], trait: 'iki', op: 'endure' },
+  { name: '한당', stats: [57, 60, 26], trait: 'watch', op: 'counter' },
+  { name: '정보', stats: [55, 49, 41], trait: 'prudent', op: 'counter' },
+  { name: '주태', stats: [54, 65, 23], trait: 'iki', op: 'resolve' },
+  { name: '정봉', stats: [54, 57, 31], trait: 'assault', op: 'lure' },
+  { name: '육손', stats: [56, 30, 57], trait: 'prudent', op: 'lure' },
+  { name: '능통', stats: [57, 67, 30], trait: 'kiai', op: 'counter' },
+  { name: '손책', stats: [62, 67, 38], trait: 'valor', op: 'first' },
+  { name: '손견', stats: [56, 59, 38], trait: 'kiai', op: 'counter' },
+  { name: '손상향', stats: [40, 54, 37], trait: 'cunning', op: 'lure' },
+  { name: '화웅', stats: [51, 69, 20], trait: 'valor', op: 'counter' },
+  { name: '방덕', stats: [58, 69, 27], trait: 'iki', op: 'resolve' },
+  { name: '이전', stats: [49, 41, 41], trait: 'prudent', op: 'counter' },
+  { name: '서성', stats: [54, 48, 42], trait: 'watch', op: 'counter' },
+  { name: '강유', stats: [54, 48, 51], trait: 'cunning', op: 'counter' },
+  { name: '주창', stats: [43, 77, 20], trait: 'iki', op: 'resolve' },
+  { name: '맹획', stats: [55, 66, 20], trait: 'valor', op: 'endure' },
+  { name: '축융', stats: [38, 74, 20], trait: 'assault', op: 'lure' },
+  { name: '엄안', stats: [51, 55, 37], trait: 'watch', op: 'resolve' },
+  { name: '안량', stats: [57, 75, 20], trait: 'assault', op: 'first' },
+  { name: '문추', stats: [57, 73, 20], trait: 'charge', op: 'deathblow' },
+  { name: '고순', stats: [61, 58, 23], trait: 'charge', op: 'first' },
+  { name: '조홍', stats: [54, 56, 20], trait: 'watch', op: 'counter' }
+];
+
 // 개성·사상: 선택 항목 / 작전: 선택 불가, 육성 중 무작위 획득
 // - 개성: 효과가 곧 설명이라 화면에 그대로 보여줍니다 (전투 시 영향)
 // - 사상: desc만 화면에 보이고 effect/grow는 내부 값입니다 (플레이어에게 비공개)
 //   grow: 능력치 번호(0통솔 1무력 2지력) → 'big'(상승) / 'small'(소폭 상승), 육성 때 오를 확률 보정
 const TABLES = {
   trait: { label: '개성', items: [
-    { id: 'valor',    name: '용맹', desc: '체력이 95% 이상일 때 치명타 확률 2배 상승' },
-    { id: 'prudent',  name: '신중', desc: '체력이 70% 이하일 경우 치명타 방어 확률 2배 상승' },
+    { id: 'valor',    name: '용맹', desc: '체력이 80% 이상일 때 치명타 확률 3배 상승' },
+    { id: 'prudent',  name: '신중', desc: '체력이 80% 이하일 경우 치명타 방어 확률 3배 상승' },
     { id: 'cunning',  name: '교활', desc: '체력이 50% 이상일 때 공격력 1.05배 상승' },
     { id: 'iki',      name: '일기', desc: '체력이 50% 이하일 때 방어력 1.05배 상승' },
     { id: 'charge',   name: '돌격', desc: '일정 확률로 사용되며 공격 성공 시 상급 치명타 대미지를 줌' },
@@ -395,11 +520,11 @@ const TRAIN = [
   { id: 'martial',name: '무예 수련',     desc: '연무장에서 땀이 흐를 때까지 창과 검을 휘두른다.',             gain: .4, to: { 1: 1 } },
   { id: 'drill',  name: '병사 조련',     desc: '병사들을 불러 모아 대열을 짜고 호흡을 맞춘다.',               gain: .4, to: { 0: 1 } },
   { id: 'books',  name: '병서 탐독',     desc: '밤을 새워 병서를 읽으며 싸움의 이치를 되새긴다.',             gain: .4, to: { 2: 1 } },
-  { id: 'hunt',   name: '사냥',          desc: '산에 들어가 맹수를 쫓으며 실전 감각을 기른다.',               gain: .3, to: { 1: 1 }, op: .1 },
-  { id: 'spar',   name: '고수와의 대련', desc: '이름난 무인을 찾아가 가르침을 청하고 겨루어 본다.',           gain: .3, to: { 1: 1 }, op: .1 },
+  { id: 'hunt',   name: '사냥',          desc: '산에 들어가 맹수를 쫓으며 실전 감각을 기른다.',               gain: .3, to: { 1: 1 }, op: .07 },
+  { id: 'spar',   name: '고수와의 대련', desc: '이름난 무인을 찾아가 가르침을 청하고 겨루어 본다.',           gain: .3, to: { 1: 1 }, op: .07 },
   { id: 'mingle', name: '장수들과 교류', desc: '술자리를 열어 다른 무장들과 속마음을 나눈다.',               gain: .4, to: { 0: 1 } },
   { id: 'patrol', name: '저잣거리 순찰', desc: '민심을 살피고 백성들의 이야기에 귀를 기울인다.',             gain: .4, to: { 0: .5, 2: .5 } },
-  { id: 'hermit', name: '은사 방문',     desc: '은거한 선비를 찾아가 천하의 정세를 묻는다.',                 gain: .3, to: { 2: 1 }, op: .1 },
+  { id: 'hermit', name: '은사 방문',     desc: '은거한 선비를 찾아가 천하의 정세를 묻는다.',                 gain: .3, to: { 2: 1 }, op: .07 },
   { id: 'mock',   name: '모의 전투',     desc: '병사들과 편을 나누어 작전을 짜고 실제처럼 겨루어 본다.',     gain: 0,  to: {},        op: .15 },
   { id: 'horse',  name: '말 길들이기',   desc: '거친 야생마를 다독이며 말과 한 몸이 되는 법을 익힌다.',       gain: .4, to: { 0: .7, 1: .3 } },
   { id: 'temple', name: '산사 명상',     desc: '고요한 산사에서 마음을 비우고 호흡을 가다듬는다.',           gain: .4, to: { 2: 1 } }
@@ -668,7 +793,7 @@ function resetAll() {
 /* ============================================================
    육성
    ============================================================ */
-const train = { n: 0, act: 0, stats: [], base: [], ops: [], busy: false };
+const train = { n: 0, act: 0, stats: [], base: [], ops: [], busy: false, results: [] };
 const IDX = { 통솔: 0, 무력: 1, 지력: 2 };
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -676,7 +801,7 @@ function pickedItem(k) { return TABLES[k].items.find(x => x.id === state.pick[k]
 
 function startTrain() {
   train.n = 0; train.act = 0; train.busy = false;
-  train.stats = state.stats.slice(); train.base = state.stats.slice(); train.ops = [];
+  train.stats = state.stats.slice(); train.base = state.stats.slice(); train.ops = []; train.results = [];
   $('#createView').hidden = true; $('#trainView').hidden = false;
   renderMe(); renderTrainStats(); renderOps(); renderSession();
   window.scrollTo({ top: 0, behavior: 'auto' });
@@ -756,7 +881,7 @@ function act(opt) {
     const free = OPS.filter(o => !train.ops.some(h => h.id === o.id));   // 중복 획득 방지
     if (free.length) {
       const got = free[Math.floor(Math.random() * free.length)];
-      train.ops.push(got); msg = '작전 「' + got.name + '」을(를) 얻었습니다.'; cls = 'gain';
+      train.ops.push(got); msg = '작전 「' + got.name + '」' + josa(got.name, '을', '를').slice(got.name.length) + ' 얻었습니다.'; cls = 'gain';
     }
   }
   const line = el('p', cls); line.append(el('small', null, opt.name));
@@ -780,17 +905,331 @@ function endSession() {
 }
 function nextSession() { train.n++; train.act = 0; renderSession(); window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); }
 
-// 일기토 대회가 들어갈 자리: 대회를 마치면 다음 육성 또는 종료 화면으로 이어집니다
+/* ============================================================
+   일기토 엔진: 같은 규칙으로 내 경기(기록 포함)와 다른 경기(결과만)를 모두 계산
+   ============================================================ */
+function makeRng(seed) {           // 시드 기반 랜덤 (나중에 점수 재검증용)
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// 한글 조사: 받침 있으면 a, 없으면 b
+function josa(word, a, b) {
+  const c = word.charCodeAt(word.length - 1);
+  return word + ((c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28) ? a : b);
+}
+const OP_NAME = Object.fromEntries(OPS.map(o => [o.id, o.name]));
+const TRAIT_LINE = { charge: '돌격!', kiai: '기합을 넣는다!', assault: '맹공을 퍼붓는다!', watch: '상대를 날카롭게 주시한다.' };
+
+function duel(F, seed, wantLog) {
+  const B = BATTLE, rng = makeRng(seed);
+  const hp = [B.hp, B.hp], buf = [{}, {}], endure = [0, 0], used = [false, false];
+  const ev = F.map(f => clamp(B.evade + (f.stats[2] - 50) * B.intCoef, B.evadeMin, B.evadeMax));
+  const cr = F.map(f => clamp(B.crit + (f.stats[2] - 50) * B.intCoef, B.critMin, B.critMax));
+  const tp = F.map(f => B.traitBase + (f.stats[0] + f.stats[2]) * B.traitCoef);
+  const pct = i => hp[i] / B.hp * 100;
+  const N = i => F[i].name;
+  const log = [];
+  const L = (t, who, text, big) => { if (wantLog) log.push({ t, who, text, big: !!big, hp: hp.slice() }); };
+
+  function hit(i, j, t) {
+    const me = F[i].trait, op = F[j].trait, notes = [];
+    let hi = false;
+    if (TRAIT_LINE[me] && rng() < tp[i] * (me === 'charge' ? B.chargeRate : 1)) {
+      if (me === 'charge') hi = true; else buf[i][me] = t + B.buffSec;
+      notes.push(me);
+    }
+    let crit = cr[i], dm = 1;
+    if (me === 'valor' && pct(i) >= 80) crit *= 3;
+    if (me === 'cunning' && pct(i) >= 50) dm *= 1.05;
+    if ((buf[i].kiai || 0) > t) dm *= 1.05;
+    if ((buf[i].assault || 0) > t) { dm *= 1.05; crit *= 1.5; }
+    let cdef = B.critDef, taken = 1;
+    if (op === 'prudent' && pct(j) <= 80) cdef *= 3;
+    if (op === 'iki' && pct(j) <= 50) taken /= 1.05;
+    if ((buf[j].watch || 0) > t) { taken /= 1.05; cdef *= 1.5; }
+    if (rng() < ev[j]) return { d: 0, type: 'evade', notes };
+    const f = clamp(1 + (F[i].stats[1] - F[j].stats[0]) * B.statCoef, B.dmgMin, B.dmgMax);
+    let d = B.baseDmg * f * (1 - B.dmgVar + rng() * 2 * B.dmgVar) * dm * taken, type = 'hit';
+    if (rng() < Math.min(1, crit)) {
+      if (rng() >= Math.min(1, cdef)) { d *= hi ? B.critMultHi : B.critMult; type = hi ? 'hicrit' : 'crit'; }
+      else type = 'block';
+    }
+    let en = false;
+    if (endure[j] > 0) { d = 1; endure[j]--; en = true; }
+    return { d, type, notes, en };
+  }
+  function logHit(i, j, r, t) {
+    r.notes.forEach(n => L(t, i, '[' + TABLES.trait.items.find(x => x.id === n).name + '] ' + N(i) + ', ' + TRAIT_LINE[n], true));
+    const dn = Math.max(1, Math.round(r.d)), en = r.en ? ' (인내로 버팀)' : '';
+    if (r.type === 'evade') L(t, i, N(j) + ', ' + N(i) + '의 공격을 피했다.');
+    else if (r.type === 'hit') L(t, i, N(i) + '의 공격 — ' + N(j) + '에게 ' + dn + ' 피해' + en);
+    else if (r.type === 'crit') L(t, i, '치명타! ' + N(i) + '의 일격 — ' + N(j) + '에게 ' + dn + ' 피해' + en, true);
+    else if (r.type === 'hicrit') L(t, i, '상급 치명타! ' + N(i) + '의 돌격 — ' + N(j) + '에게 ' + dn + ' 피해' + en, true);
+    else if (r.type === 'block') L(t, i, N(j) + ', 치명타를 막아냈다 — ' + dn + ' 피해' + en);
+  }
+  function opTry(i, j, t) {
+    if (used[i] || !F[i].ops.length) return null;
+    if (F[i].ops.includes('resolve') && hp[j] - hp[i] >= B.resolveGap && rng() < B.resolveRate) {
+      used[i] = true; L(t, i, '[작전 결사] ' + N(i) + ', 목숨을 걸고 달려든다!', true); return 'win';
+    }
+    const c = F[i].ops.filter(o => o === 'deathblow' || o === 'lure' || o === 'endure');
+    if (!c.length || rng() >= F[i].stats[2] * B.opCoef) return null;
+    const o = c[Math.floor(rng() * c.length)]; used[i] = true;
+    if (o === 'deathblow') {
+      if (F[j].ops.includes('counter')) { hp[i] *= 0.5; L(t, i, '[작전 일격필살] ' + N(i) + '의 필살의 일격! — [작전 반격] ' + N(j) + ', 받아쳤다! ' + N(i) + '의 체력이 절반으로', true); }
+      else if (endure[j] > 0) { hp[j] -= 1; endure[j]--; L(t, i, '[작전 일격필살] ' + N(i) + '의 필살의 일격! — ' + N(j) + ', 인내로 버텼다', true); }
+      else { hp[j] *= 0.5; L(t, i, '[작전 일격필살] ' + N(i) + '의 필살의 일격! ' + N(j) + '의 체력이 절반으로', true); }
+    } else if (o === 'lure') {
+      if (endure[j] > 0) { hp[j] -= 1; endure[j]--; L(t, i, '[작전 유인] ' + N(i) + ', 물러서는 척 유인했다 — ' + N(j) + ', 인내로 버텼다', true); }
+      else { hp[j] -= 20; L(t, i, '[작전 유인] ' + N(i) + ', 물러서는 척 유인했다 — ' + N(j) + '에게 20 피해', true); }
+    } else if (o === 'endure') { endure[i] = 3; L(t, i, '[작전 인내] ' + N(i) + ', 이를 악물고 버틴다', true); }
+    return null;
+  }
+
+  for (let i = 0; i < 2; i++) {
+    if (F[i].ops.includes('first') && rng() < F[i].stats[2] * B.firstCoef) {
+      const r = hit(i, 1 - i, 0.6); hp[1 - i] -= r.d;
+      L(0.6, i, '[작전 선제공격] ' + N(i) + ', 먼저 치고 들어간다!', true); logHit(i, 1 - i, r, 0.6);
+    }
+  }
+  let t = B.tick, timeUp = false, resolveWin = null;
+  while (hp[0] > 0 && hp[1] > 0) {
+    if (t > B.timeLimit) { timeUp = true; break; }
+    const r0 = opTry(0, 1, t), r1 = opTry(1, 0, t);
+    if (r0 === 'win' && r1 !== 'win') { resolveWin = 0; break; }
+    if (r1 === 'win' && r0 !== 'win') { resolveWin = 1; break; }
+    if (hp[0] <= 0 || hp[1] <= 0) break;
+    const a = hit(0, 1, t), b = hit(1, 0, t);
+    hp[1] -= a.d; hp[0] -= b.d;
+    logHit(0, 1, a, t); logHit(1, 0, b, t);
+    t += B.tick;
+  }
+  let w = resolveWin;
+  if (w === null) w = hp[0] > hp[1] ? 0 : hp[1] > hp[0] ? 1 : (rng() < 0.5 ? 0 : 1);
+  const survived = resolveWin === null && hp[w] <= 0;     // 동시에 쓰러졌지만 버텨냄
+  if (survived) hp[w] = 1;
+  if (resolveWin !== null) hp[1 - w] = 0;
+  return { winner: w, log, hp: hp.map(h => Math.max(0, h)), timeUp, survived, resolve: resolveWin !== null, end: Math.min(t, B.timeLimit) };
+}
+
+/* ============================================================
+   일기토 대회 (32강 단판 토너먼트)
+   ============================================================ */
+const tour = { round: 0, stage: 0, alive: [], speed: 1, timer: null, place: '' };
+
+function makeNpcs(r) {
+  const seen = new Set(), pool = NPC_TABLE.filter(n => !seen.has(n.name) && seen.add(n.name));
+  const pick = shuffle(pool).slice(0, 31);
+  while (pick.length < 31) pick.push({ name: '무명 장수 ' + (pick.length + 1), stats: [45, 45, 45], trait: TABLES.trait.items[0].id, op: '' });
+  const bonus = TOUR.statBonus[r - 1], oc = TOUR.opChance[r - 1];
+  return pick.map(n => ({
+    name: n.name,
+    stats: n.stats.map(v => clamp(v + bonus, CFG.min, 100)),
+    trait: n.trait,
+    ops: n.op && Math.random() < oc ? [n.op] : [],
+    forfeit: false
+  }));
+}
+function playerFighter() {
+  return { name: '신무장', stats: train.stats.slice(), trait: state.pick.trait, ops: train.ops.map(o => o.id), forfeit: false, me: true };
+}
+const seed = () => (Math.random() * 4294967296) >>> 0;
+
 function tournament(round) {
-  $('#trNext').textContent = '';
-  const box = $('#trAct'); box.textContent = '';
-  $('#trLog').textContent = '';
-  $('#trLede').textContent = '일기토 대회 ' + round + '회차';
-  const card = el('div', 'tr-card');
-  card.append(el('h2', null, '일기토 대회 ' + round + '회차'), el('p', null, '대회의 막이 오릅니다.'));
-  const b = el('button', 'btn primary', '계속'); b.type = 'button'; b.style.marginTop = '18px';
-  b.addEventListener('click', afterTournament);
-  card.appendChild(b); box.appendChild(card);
+  tour.round = round; tour.stage = 0; tour.place = '';
+  tour.alive = shuffle([playerFighter(), ...makeNpcs(round)]);
+  $('#trainView').hidden = true; $('#tourView').hidden = false;
+  $('#tvTitle').textContent = '일기토 대회 ' + round + '회차';
+  showStage();
+}
+function pairs() { const p = []; for (let i = 0; i < tour.alive.length; i += 2) p.push([tour.alive[i], tour.alive[i + 1]]); return p; }
+function myPair() { return pairs().find(p => p[0].me || p[1].me); }
+function traitName(id) { return TABLES.trait.items.find(x => x.id === id).name; }
+
+function fighterBox(f, side) {
+  const box = el('div', 'fz' + (f.me ? ' me' : '')); box.dataset.side = side;
+  const face = el('div', 'face');
+  if (f.me) { const img = el('img'); img.src = PORTRAITS[state.gender]; img.alt = ''; face.appendChild(img); }
+  else face.textContent = f.name[0];
+  box.append(face, el('b', null, f.name),
+    el('small', null, '통솔 ' + f.stats[0] + ' · 무력 ' + f.stats[1] + ' · 지력 ' + f.stats[2]),
+    el('small', null, '개성 ' + traitName(f.trait)));
+  const bar = el('div', 'hpbar'); bar.appendChild(el('i'));
+  box.append(bar, el('div', 'hpnum', BATTLE.hp + ' / ' + BATTLE.hp));
+  return box;
+}
+function matchCard(p) {
+  const c = el('div', 'mcard');
+  c.append(fighterBox(p[0], 0), el('div', 'vs', 'VS'), fighterBox(p[1], 1));
+  return c;
+}
+
+function showStage() {
+  clearTimeout(tour.timer);
+  const main = $('#tvMain'); main.textContent = '';
+  $('#tvLede').textContent = TOUR.rounds[tour.stage];
+  const p = myPair();
+  const foe = p[0].me ? p[1] : p[0], me = p[0].me ? p[0] : p[1];
+  main.appendChild(matchCard(p));
+  const ctl = el('div', 'make');
+  if (me.forfeit) {
+    ctl.appendChild(el('p', 'tr-sub', '결사의 대가로 이번 경기에 나설 수 없습니다.'));
+    const b = el('button', 'btn primary', '결과 보기'); b.type = 'button';
+    b.addEventListener('click', () => finishStage({ winner: p[0].me ? 1 : 0, forfeit: true }));
+    ctl.appendChild(b);
+  } else if (foe.forfeit) {
+    ctl.appendChild(el('p', 'tr-sub', foe.name + ', 결사의 대가로 경기에 나서지 못합니다.'));
+    const b = el('button', 'btn primary', '부전승으로 진출'); b.type = 'button';
+    b.addEventListener('click', () => finishStage({ winner: p[0].me ? 0 : 1, forfeit: true }));
+    ctl.appendChild(b);
+  } else {
+    const b = el('button', 'btn primary', '경기 시작'); b.type = 'button';
+    b.addEventListener('click', () => playMatch(p));
+    ctl.appendChild(b);
+  }
+  main.appendChild(ctl);
+}
+
+function playMatch(p) {
+  const main = $('#tvMain');
+  const card = main.querySelector('.mcard');
+  main.textContent = ''; main.appendChild(card);
+  const res = duel(p, seed(), true);
+  const ctl = el('div', 'bt-ctrl');
+  const sp = el('button', 'btn', tour.speed === 1 ? '2배속' : '1배속'); sp.type = 'button';
+  const sk = el('button', 'btn', '결과 바로 보기'); sk.type = 'button';
+  ctl.append(sp, sk); main.appendChild(ctl);
+  const ul = el('ul', 'bt-log'); main.appendChild(ul);
+  const meIdx = p[0].me ? 0 : 1;
+  const groups = [];
+  res.log.forEach(e => { const g = groups[groups.length - 1]; if (g && g.t === e.t) g.items.push(e); else groups.push({ t: e.t, items: [e] }); });
+  let gi = 0, done = false;
+  const sides = card.querySelectorAll('.fz');
+  function setHp(hp, hurt) {
+    sides.forEach((s, k) => {
+      const v = Math.max(0, Math.ceil(hp[k]));
+      s.querySelector('.hpbar i').style.width = clamp(v / BATTLE.hp * 100, 0, 100) + '%';
+      s.querySelector('.hpnum').textContent = v + ' / ' + BATTLE.hp;
+      if (hurt && hurt[k] && !reduce) { s.classList.remove('hurt'); void s.offsetWidth; s.classList.add('hurt'); }
+    });
+  }
+  let last = [BATTLE.hp, BATTLE.hp];
+  function showGroup(g) {
+    g.items.forEach(e => {
+      const li = el('li', (e.who !== meIdx ? 'foe' : '') + (e.big ? ' big' : ''), e.text);
+      ul.prepend(li);
+    });
+    const hp = g.items[g.items.length - 1].hp;
+    setHp(hp, [hp[0] < last[0], hp[1] < last[1]]); last = hp;
+  }
+  function step() {
+    if (done) return;
+    if (gi >= groups.length) return finish();
+    showGroup(groups[gi++]);
+    tour.timer = setTimeout(step, BATTLE.tick * 1000 / tour.speed);
+  }
+  function finish() {
+    if (done) return; done = true; clearTimeout(tour.timer);
+    while (gi < groups.length) showGroup(groups[gi++]);
+    setHp(res.hp); ctl.remove();
+    const win = res.winner === meIdx, foe = p[1 - meIdx];
+    const box = el('div', 'bt-result ' + (win ? 'win' : 'lose'));
+    box.appendChild(el('h2', null, win ? '승리!' : '패배'));
+    let note = win ? josa(foe.name, '을', '를') + ' 꺾었습니다.' : foe.name + '에게 패했습니다.';
+    if (res.resolve) note = (res.winner === meIdx ? '결사로 승리했습니다. 다음 경기에는 나설 수 없습니다.' : foe.name + '의 결사에 무너졌습니다.');
+    else if (res.survived) note = (win ? '마지막 일격을 버텨내고 승리했습니다.' : josa(foe.name, '이', '가') + ' 마지막 일격을 버텨냈습니다.');
+    else if (res.timeUp) note = '시간 종료 — 남은 체력으로 승부가 갈렸습니다.';
+    box.appendChild(el('p', null, note));
+    main.insertBefore(box, ul);
+    const b = el('button', 'btn primary', '계속'); b.type = 'button';
+    b.addEventListener('click', () => finishStage(res));
+    const wrap = el('div', 'make'); wrap.appendChild(b); main.insertBefore(wrap, ul);
+  }
+  sp.addEventListener('click', () => { tour.speed = tour.speed === 1 ? 2 : 1; sp.textContent = tour.speed === 1 ? '2배속' : '1배속'; });
+  sk.addEventListener('click', finish);
+  if (reduce) finish(); else step();
+}
+
+// 이번 라운드의 나머지 경기를 계산하고 다음 라운드로
+function runOthers(skipPair) {
+  const results = [], next = [];
+  pairs().forEach(p => {
+    if (skipPair && p[0] === skipPair[0]) return;
+    let w;
+    if (p[0].forfeit && !p[1].forfeit) w = 1;
+    else if (p[1].forfeit && !p[0].forfeit) w = 0;
+    else { const r = duel(p, seed(), false); w = r.winner; p[w].nextForfeit = r.resolve; }
+    results.push({ p, w });
+  });
+  return results;
+}
+function advance(results) {
+  const order = new Map(results.map(r => [r.p[0], r.p[r.w]]));
+  const nxt = [];
+  pairs().forEach(p => { const w = order.get(p[0]); w.forfeit = TOUR.resolveSkipsNext && !!w.nextForfeit; w.nextForfeit = false; nxt.push(w); });
+  tour.alive = nxt; tour.stage++;
+}
+
+function finishStage(res) {
+  const p = myPair(), meIdx = p[0].me ? 0 : 1;
+  if (!res.forfeit) p[res.winner].nextForfeit = res.resolve;
+  const others = runOthers(p);
+  const all = [{ p, w: res.winner }, ...others];
+  const win = res.winner === meIdx;
+  const stageName = TOUR.rounds[tour.stage];
+  advance(all);
+  if (!win) {
+    tour.place = stageName === '결승' ? '준우승' : stageName + ' 탈락';
+    return endTournament(all);
+  }
+  if (tour.alive.length === 1) { tour.place = '우승'; return endTournament(all); }
+  // 다음 라운드 안내 + 이번 라운드 다른 경기 결과
+  const main = $('#tvMain'); main.textContent = '';
+  $('#tvLede').textContent = stageName + ' 통과';
+  main.appendChild(othersList(others, stageName));
+  const b = el('button', 'btn primary', TOUR.rounds[tour.stage] + ' 진행'); b.type = 'button';
+  b.addEventListener('click', showStage);
+  const wrap = el('div', 'make'); wrap.appendChild(b); main.prepend(wrap);
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}
+function othersList(list, stageName) {
+  const d = el('details', 'others');
+  d.appendChild(el('summary', null, stageName + ' 다른 경기 결과 (' + list.length + ')'));
+  const ul = el('ul');
+  list.forEach(({ p, w }) => {
+    const li = el('li');
+    li.append(el('b', null, p[w].name), ' 승 — ' + p[1 - w].name);
+    ul.appendChild(li);
+  });
+  d.appendChild(ul); return d;
+}
+
+// 내가 탈락하거나 우승하면 남은 경기를 모두 계산해서 우승자를 정함
+function endTournament(lastResults) {
+  while (tour.alive.length > 1) { const r = runOthers(null); advance(r); }
+  const champ = tour.alive[0];
+  train.results.push({ round: tour.round, place: tour.place });
+  const main = $('#tvMain'); main.textContent = '';
+  $('#tvLede').textContent = '대회 종료';
+  const box = el('div', 'bt-result ' + (tour.place === '우승' ? 'win' : ''));
+  box.append(el('h2', null, tour.place === '우승' ? '우승!' : tour.place),
+             el('p', null, tour.place === '우승' ? '일기토 대회 ' + tour.round + '회차의 정상에 섰습니다.' : '이번 대회 우승: ' + champ.name));
+  main.appendChild(box);
+  const last = tour.round === CFG.schedule[CFG.schedule.length - 1];
+  const b = el('button', 'btn primary', last || (TOUR.endOnLoss && tour.place !== '우승') ? '결과 보기' : '다음 육성으로'); b.type = 'button';
+  b.addEventListener('click', () => {
+    $('#tourView').hidden = true; $('#trainView').hidden = false;
+    if (TOUR.endOnLoss && tour.place !== '우승') return finishTrain();
+    afterTournament();
+  });
+  const wrap = el('div', 'make'); wrap.appendChild(b); main.appendChild(wrap);
+  window.scrollTo({ top: 0, behavior: 'auto' });
 }
 function afterTournament() {
   if (train.n >= CFG.schedule.length - 1) return finishTrain();
@@ -798,18 +1237,20 @@ function afterTournament() {
 }
 
 function finishTrain() {
-  $('#trLede').textContent = '육성을 마쳤습니다';
+  $('#trLede').textContent = '모든 일정을 마쳤습니다';
+  $('#trNext').textContent = ''; $('#trLog').textContent = '';
   const box = $('#trAct'); box.textContent = '';
-  const card = el('div', 'tr-card'); card.appendChild(el('h2', null, '육성 결과'));
+  const card = el('div', 'tr-card'); card.appendChild(el('h2', null, '최종 결과'));
   const dl = el('dl');
   STAT_NAMES.forEach((n, i) => {
     const d = train.stats[i] - train.base[i];
     dl.append(el('dt', null, n), el('dd', null, train.base[i] + ' → ' + train.stats[i] + (d ? '  (+' + d + ')' : '')));
   });
   dl.append(el('dt', null, '작전'), el('dd', null, train.ops.length ? train.ops.map(o => o.name).join(', ') : '없음'));
+  train.results.forEach(r => dl.append(el('dt', null, '대회 ' + r.round), el('dd', null, r.place)));
   card.appendChild(dl);
   const b = el('button', 'btn', '처음부터 다시'); b.type = 'button'; b.style.marginTop = '18px';
-  b.addEventListener('click', () => { $('#trainView').hidden = true; $('#createView').hidden = false; resetAll(); });
+  b.addEventListener('click', () => { $('#trainView').hidden = true; $('#tourView').hidden = true; $('#createView').hidden = false; resetAll(); });
   card.appendChild(b); box.appendChild(card);
 }
 
