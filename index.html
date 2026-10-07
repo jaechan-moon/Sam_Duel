@@ -178,6 +178,7 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 .fld .cnt { display: block; margin-top: 4px; text-align: right; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .fld .cnt.max { color: var(--gold); font-weight: 700; }
 .fld-hint { margin: 8px 0 0; color: var(--ink-2); font-size: 13px; }
+.fld-err { margin: 8px 0 0; color: var(--cord); font-size: 14px; font-weight: 700; }
 .sheet .alias { margin: -6px 0 14px; text-align: center; color: var(--ink-2); font-size: 15px; }
 
 /* --- gender --- */
@@ -352,6 +353,7 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
           <small class="cnt" id="styleCnt">0 / 4</small></label>
       </div>
       <p class="fld-hint">이름과 자는 각각 최대 4글자(8바이트)입니다. 한글, 한자, 영문, 숫자를 쓸 수 있어요.</p>
+      <p class="fld-err" id="nameErr" role="alert" hidden></p>
     </fieldset>
   </section>
 
@@ -448,7 +450,16 @@ const CFG = {
   choiceCount: 12,             // 한 번에 보여줄 선택지 수 (12 = 전부)
   gain: 2,                     // 능력치가 오를 때 상승량
   growMax: 100,                // 육성 중 능력치 1개 최대값
-  bonus: { big: 0.10, small: 0.05 }  // 사상 보정(확률 더하기): 상승 / 소폭 상승
+  bonus: { big: 0.10, small: 0.05 },  // 사상 보정(확률 더하기): 상승 / 소폭 상승
+  // 육성 회차별 보정 (확률 %p를 더함). 4·5회차는 2·3회차 보정 위에 더 얹은 누적값
+  //  stat: 능력치가 오를 확률(능력치가 오를 수 있는 행동에만), op: 작전을 얻을 확률(작전을 얻을 수 있는 행동에만)
+  growBonus: [
+    { stat: 0,    op: 0    },   // 육성 1회
+    { stat: 0.05, op: 0.03 },   // 육성 2회
+    { stat: 0.05, op: 0.03 },   // 육성 3회
+    { stat: 0.10, op: 0.06 },   // 육성 4회 (능력치는 2·3회 +5% 에 +5% 더, 작전은 +3% 에 +3% 더)
+    { stat: 0.10, op: 0.06 }    // 육성 5회
+  ],
 };
 
 /* ============================================================
@@ -779,7 +790,7 @@ function bindName(inputId, cntId, key) {
   const apply = () => {
     const c = cleanName(inp.value);
     if (c !== inp.value) inp.value = c;
-    state[key] = c; paint(); hideSheet(); renderMake();
+    state[key] = c; paint(); hideSheet(); if (key === 'name') paintNameErr(); renderMake();
   };
   inp.addEventListener('input', e => { if (e.isComposing) { paint(); return; } apply(); });   // 한글 조합 중에는 자르지 않음
   inp.addEventListener('compositionend', apply);
@@ -787,12 +798,18 @@ function bindName(inputId, cntId, key) {
   inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); inp.blur(); const nx = inputId === '#nameIn' ? $('#styleIn') : null; if (nx) nx.focus(); } });
   paint();
 }
+function nameTaken(n) { return !!n && NPC_TABLE.some(x => x.name === n); }   // 대회에 나오는 장수 이름과 겹치는지
+function paintNameErr() {
+  const bad = nameTaken(state.name), e = $('#nameErr');
+  e.hidden = !bad; e.textContent = bad ? josa(state.name, '은', '는') + ' 이미 대회에 나오는 장수 이름이에요. 다른 이름을 써 주세요.' : '';
+  $('#nameIn').setAttribute('aria-invalid', bad ? 'true' : 'false');
+}
 function playerLabel() { return state.name + (state.style ? ' (자 ' + state.style + ')' : ''); }
 
 function missing() {
   const m = [];
   if (!state.gender) m.push('성별');
-  if (!state.name) m.push('이름');
+  if (!state.name || nameTaken(state.name)) m.push('이름');
   if (!state.stats) m.push('능력치');
   Object.entries(TABLES).forEach(([k, t]) => { if (!state.pick[k]) m.push(t.label); });
   return m;
@@ -900,7 +917,7 @@ function resetAll() {
   Object.assign(state, { stats: null, total: 0, rolls: 0, sinceMax: 0, history: [], activeId: null, pick: { trait: null, ideology: null }, gender: null, name: '', style: '' });
   document.querySelectorAll('#choices input, #genderOpts input').forEach(i => { i.checked = false; });
   $('#nameIn').value = ''; $('#styleIn').value = ''; $('#nameCnt').textContent = '0 / ' + NAME_MAX; $('#styleCnt').textContent = '0 / ' + NAME_MAX;
-  $('#nameCnt').classList.remove('max'); $('#styleCnt').classList.remove('max');
+  $('#nameCnt').classList.remove('max'); $('#styleCnt').classList.remove('max'); paintNameErr();
   document.querySelectorAll('.opt').forEach(o => o.classList.remove('on'));
   hideSheet(); renderStats(); renderHistory(); renderCount(); renderMake();
   window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
@@ -976,12 +993,14 @@ function renderSession() {
 // 한 번의 행동 결과를 결정
 function resolve(opt) {
   const bonus = pickedItem('ideology').grow || {};
+  const sb = CFG.growBonus[train.n] || { stat: 0, op: 0 };      // 이번 육성 회차 보정
+  const gain = opt.gain > 0 ? opt.gain + sb.stat : 0;
   const outs = [];
   Object.entries(opt.to).forEach(([si, w]) => {
     const st = +si, lv = bonus[st];
-    outs.push({ type: 'stat', stat: st, p: opt.gain * w + (lv ? CFG.bonus[lv] : 0) });
+    outs.push({ type: 'stat', stat: st, p: gain * w + (lv ? CFG.bonus[lv] : 0) });
   });
-  if (opt.op) outs.push({ type: 'op', p: opt.op });
+  if (opt.op) outs.push({ type: 'op', p: opt.op + sb.op });
   let r = Math.random();
   for (const o of outs) { if (r < o.p) return o; r -= o.p; }
   return { type: 'none' };
@@ -1159,7 +1178,8 @@ function duel(F, seed, wantLog) {
 /* ============================================================
    일기토 대회 (32강 단판 토너먼트)
    ============================================================ */
-const tour = { round: 0, stage: 0, alive: [], speed: 1, timer: null, place: '' };
+const tour = { round: 0, stage: 0, alive: [], speed: 2, timer: null, place: '' };
+const SPEEDS = [1, 2, 2.5];
 
 function makeNpcs(r) {
   const seen = new Set(), pool = NPC_TABLE.filter(n => n.name !== state.name && !seen.has(n.name) && seen.add(n.name));
@@ -1245,9 +1265,17 @@ function playMatch(p) {
   main.textContent = ''; main.appendChild(card);
   const res = duel(p, seed(), true);
   const ctl = el('div', 'bt-ctrl');
-  const sp = el('button', 'btn', tour.speed === 1 ? '2배속' : '1배속'); sp.type = 'button';
+  const spBtns = SPEEDS.map(v => {
+    const b = el('button', 'btn', v + '배속'); b.type = 'button'; b.setAttribute('aria-pressed', String(tour.speed === v));
+    if (tour.speed === v) b.classList.add('primary');
+    b.addEventListener('click', () => {
+      tour.speed = v;
+      spBtns.forEach((x, k) => { x.classList.toggle('primary', SPEEDS[k] === v); x.setAttribute('aria-pressed', String(SPEEDS[k] === v)); });
+    });
+    return b;
+  });
   const sk = el('button', 'btn', '결과 바로 보기'); sk.type = 'button';
-  ctl.append(sp, sk); main.appendChild(ctl);
+  ctl.append(...spBtns, sk); main.appendChild(ctl);
   const ul = el('ul', 'bt-log'); main.appendChild(ul);
   const meIdx = p[0].me ? 0 : 1;
   const groups = [];
@@ -1294,7 +1322,6 @@ function playMatch(p) {
     b.addEventListener('click', () => { snap(); finishStage(res); });
     const wrap = el('div', 'make'); wrap.appendChild(b); main.insertBefore(wrap, ul);
   }
-  sp.addEventListener('click', () => { tour.speed = tour.speed === 1 ? 2 : 1; sp.textContent = tour.speed === 1 ? '2배속' : '1배속'; });
   sk.addEventListener('click', finish);
   if (reduce) finish(); else step();
 }
