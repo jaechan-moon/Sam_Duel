@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;900&display=swap" rel="stylesheet">
 <style>
+[hidden] { display: none !important; }
 :root {
   --bg: #E7EBE8;
   --surface: #F3F5F2;
@@ -94,7 +95,7 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
   transition: border-color .25s, box-shadow .25s;
 }
 .slip-name { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.slip-name b { writing-mode: vertical-rl; font-size: 26px; font-weight: 900; letter-spacing: .12em; line-height: 1; }
+.slip-name b { display: flex; flex-direction: column; align-items: center; font-size: 26px; font-weight: 900; line-height: 1.08; }
 .slip-name small { color: var(--ink-2); font-size: 14px; }
 .slip-num {
   margin-top: auto; padding-bottom: 20px;
@@ -166,6 +167,19 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 .opt input:focus-visible + .card { outline: 3px solid var(--gold); outline-offset: 2px; }
 .note { margin: 0; color: var(--ink-2); font-size: 13px; }
 
+/* --- 이름 입력 --- */
+.name-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-width: 420px; }
+.fld { display: block; min-width: 0; }
+.fld > span { display: block; margin-bottom: 4px; font-size: 14px; color: var(--ink-2); }
+.fld > span em { font-style: normal; font-size: 12px; opacity: .8; }
+.fld input { width: 100%; box-sizing: border-box; padding: 12px 14px; font: inherit; font-size: 18px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.fld input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-color: var(--accent); }
+.fld input::placeholder { color: var(--ink-2); opacity: .55; }
+.fld .cnt { display: block; margin-top: 4px; text-align: right; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.fld .cnt.max { color: var(--gold); font-weight: 700; }
+.fld-hint { margin: 8px 0 0; color: var(--ink-2); font-size: 13px; }
+.sheet .alias { margin: -6px 0 14px; text-align: center; color: var(--ink-2); font-size: 15px; }
+
 /* --- gender --- */
 .gender-opts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-width: 420px; }
 .opt.gender .card { padding: 0; overflow: hidden; }
@@ -221,7 +235,7 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 .fz.hurt .face { animation: hurt .35s ease-out 1; }
 @keyframes hurt { 0%,100% { transform: none; } 25% { transform: translateX(-4px); background: var(--cord); } 60% { transform: translateX(3px); } }
 .bt-ctrl { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
-.bt-log { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.bt-log { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
 .bt-log li { padding: 6px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; animation: rise .25s ease-out 1; }
 .bt-log li.foe { color: var(--ink-2); }
 .bt-log li.big { border-color: var(--gold); background: var(--gold-bg); color: var(--ink); font-weight: 700; }
@@ -236,6 +250,41 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 .others ul { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14px; }
 .others li { padding: 4px 0; border-bottom: 1px dashed var(--line); }
 .others li b { font-weight: 900; }
+
+/* --- 육성 결과 연출 --- */
+#trStats { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 4; background: var(--bg); padding: 8px 0; }
+#trStats div { position: relative; }
+.gainf { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); pointer-events: none; font-weight: 900; font-size: 26px; color: var(--gold); text-shadow: 0 1px 0 var(--surface), 0 0 10px var(--gold-bg); animation: gainf 1.3s ease-out forwards; }
+@keyframes gainf {
+  0% { opacity: 0; transform: translate(-50%, 10px) scale(.6); }
+  18% { opacity: 1; transform: translate(-50%, -6px) scale(1.25); }
+  35% { transform: translate(-50%, -12px) scale(1); }
+  70% { opacity: 1; transform: translate(-50%, -26px); }
+  100% { opacity: 0; transform: translate(-50%, -40px); }
+}
+.op-toast { position: fixed; left: 50%; top: 38%; z-index: 50; transform: translate(-50%, -50%); min-width: 220px; padding: 18px 26px; text-align: center; background: var(--surface); border: 2px solid var(--gold); border-radius: 14px; box-shadow: 0 0 0 6px var(--gold-bg), 0 12px 30px rgba(0,0,0,.25); animation: optoast 1.8s ease-out forwards; pointer-events: none; }
+.op-toast small { display: block; color: var(--gold); font-weight: 700; letter-spacing: .08em; }
+.op-toast b { display: block; margin-top: 4px; font-size: 28px; font-weight: 900; }
+@keyframes optoast {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.7); }
+  14% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  24% { transform: translate(-50%, -50%) scale(1); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -60%) scale(.96); }
+}
+.tr-ops b.new { display: inline-block; animation: pop .8s ease-out 1; color: var(--gold); }
+
+/* --- 지난 화면 보기 --- */
+.fz .st3 span { white-space: nowrap; }
+.histnav { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.histnav .btn { padding: 8px 14px; font-size: 14px; }
+.rv-bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; margin: 0 0 16px; padding: 12px 14px; background: var(--gold-bg); border: 1px solid var(--gold); border-radius: 12px; }
+.rv-tag { margin: 0 0 8px; font-weight: 700; }
+.rv-tag small { display: block; font-weight: 400; color: var(--ink-2); }
+.rv-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.rv-btns .btn { padding: 8px 14px; font-size: 14px; }
+.review button, .review .bt-ctrl, .review .make { display: none !important; }
+.review .bt-log { max-height: none; }
 
 /* --- make + sheet --- */
 .make { margin-top: 28px; display: flex; flex-direction: column; gap: 10px; }
@@ -264,6 +313,20 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 </head>
 <body>
 <main class="wrap">
+<nav class="histnav" id="histNav" hidden>
+  <button type="button" class="btn nav" id="navBack">◀ 지난 화면 보기</button>
+</nav>
+<div id="reviewView" hidden>
+  <div class="rv-bar">
+    <p class="rv-tag" id="rvTag"></p>
+    <div class="rv-btns">
+      <button type="button" class="btn nav" id="rvPrev">◀ 이전</button>
+      <button type="button" class="btn nav" id="rvNext">다음 ▶</button>
+      <button type="button" class="btn primary nav" id="rvLive">지금 화면으로</button>
+    </div>
+  </div>
+  <div class="review" id="rvBody"></div>
+</div>
 <div id="createView">
   <header>
     <h1>신무장 생성</h1>
@@ -277,11 +340,26 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
     </fieldset>
   </section>
 
+  <section class="block" aria-label="이름" id="nameSec" style="margin-top:0">
+    <fieldset class="group">
+      <legend>이름</legend>
+      <div class="name-row">
+        <label class="fld"><span>이름</span>
+          <input id="nameIn" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next" placeholder="예: 관우">
+          <small class="cnt" id="nameCnt">0 / 4</small></label>
+        <label class="fld"><span>자(字) <em>선택</em></span>
+          <input id="styleIn" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="예: 운장">
+          <small class="cnt" id="styleCnt">0 / 4</small></label>
+      </div>
+      <p class="fld-hint">이름과 자는 각각 최대 4글자(8바이트)입니다. 한글, 한자, 영문, 숫자를 쓸 수 있어요.</p>
+    </fieldset>
+  </section>
+
   <section aria-label="능력치">
     <div class="slips" id="slips">
-      <div class="slip"><span class="gauge"><i></i></span><div class="slip-name"><b>統率</b><small>통솔</small></div><output class="slip-num">?</output></div>
-      <div class="slip"><span class="gauge"><i></i></span><div class="slip-name"><b>武力</b><small>무력</small></div><output class="slip-num">?</output></div>
-      <div class="slip"><span class="gauge"><i></i></span><div class="slip-name"><b>智力</b><small>지력</small></div><output class="slip-num">?</output></div>
+      <div class="slip"><span class="gauge"><i></i></span><div class="slip-name"><b><span>統</span><span>率</span></b><small>통솔</small></div><output class="slip-num">?</output></div>
+      <div class="slip"><span class="gauge"><i></i></span><div class="slip-name"><b><span>武</span><span>力</span></b><small>무력</small></div><output class="slip-num">?</output></div>
+      <div class="slip"><span class="gauge"><i></i></span><div class="slip-name"><b><span>智</span><span>力</span></b><small>지력</small></div><output class="slip-num">?</output></div>
     </div>
 
     <div class="meter" id="meter">
@@ -363,6 +441,7 @@ const CFG = {
   // 160이 아닐 때 합계 = 160 - (1 + 지수분포 평균 shortMean), 최대 shortCap 감소
   shortMean: 16,
   shortCap: 50,
+  mightBias: 2,                // 능력치 분배 때 무력 쪽 가중치 (1 = 균등). 2면 무력 73 이상이 약 9% → 31%
   // ----- 육성 -----
   schedule: [1, 2, 2, 3, 3],   // 육성 1~5회가 각각 몇 회차 일기토 대회 전에 있는지
   actionsPerSession: 3,        // 육성 1회당 행동 횟수
@@ -468,7 +547,7 @@ const TABLES = {
     { id: 'prudent',  name: '신중', desc: '체력이 80% 이하일 경우 치명타 방어 확률 3배 상승' },
     { id: 'cunning',  name: '교활', desc: '체력이 50% 이상일 때 공격력 1.05배 상승' },
     { id: 'iki',      name: '일기', desc: '체력이 50% 이하일 때 방어력 1.05배 상승' },
-    { id: 'charge',   name: '돌격', desc: '일정 확률로 사용되며 공격 성공 시 상급 치명타 대미지를 줌' },
+    { id: 'charge',   name: '돌격', desc: '일정 확률로 사용되며 그 공격이 치명타면 상급 치명타 대미지를 줌' },
     { id: 'kiai',     name: '기합', desc: '일정 확률로 사용되며 5초간 공격력 1.05배 상승 버프' },
     { id: 'assault',  name: '맹공', desc: '일정 확률로 사용되며 5초간 공격력 1.05배 상승 + 치명타 확률 1.5배 상승' },
     { id: 'watch',    name: '감시', desc: '일정 확률로 사용되며 5초간 방어력 1.05배 상승 + 치명타 방어 확률 1.5배 상승' }
@@ -543,6 +622,7 @@ const state = {
   history: [], activeId: null,
   pick: { trait: null, ideology: null },
   gender: null,
+  name: '', style: '',
   rolling: false
 };
 
@@ -566,6 +646,7 @@ function split(total) {
   const stats = [CFG.min, CFG.min, CFG.min];
   let rem = total - CFG.min * 3;
   const w = [0, 0, 0].map(() => Math.pow(Math.random(), 1.4) + 0.08);
+  w[1] *= CFG.mightBias;   // 무력 위주
   let open = [0, 1, 2];
   while (rem > 0 && open.length) {
     const ws = open.reduce((a, i) => a + w[i], 0);
@@ -680,9 +761,38 @@ function buildGender() {
   });
 }
 
+/* ---------- 이름 / 자 ---------- */
+const NAME_MAX = 4, NAME_BYTES = 8;
+const NAME_BAD = /[^가-힣ㄱ-ㅎㅏ-ㅣ一-鿿A-Za-z0-9]/g;     // 한글·한자·영문·숫자만
+function byteLen(str) { let b = 0; for (const ch of str) b += ch.charCodeAt(0) < 128 ? 1 : 2; return b; }
+function cleanName(v) {
+  let out = '';
+  for (const ch of v.replace(NAME_BAD, '')) {
+    if ([...out].length >= NAME_MAX || byteLen(out + ch) > NAME_BYTES) break;
+    out += ch;
+  }
+  return out;
+}
+function bindName(inputId, cntId, key) {
+  const inp = $(inputId), cnt = $(cntId);
+  const paint = () => { const n = [...inp.value].length; cnt.textContent = n + ' / ' + NAME_MAX; cnt.classList.toggle('max', n >= NAME_MAX); };
+  const apply = () => {
+    const c = cleanName(inp.value);
+    if (c !== inp.value) inp.value = c;
+    state[key] = c; paint(); hideSheet(); renderMake();
+  };
+  inp.addEventListener('input', e => { if (e.isComposing) { paint(); return; } apply(); });   // 한글 조합 중에는 자르지 않음
+  inp.addEventListener('compositionend', apply);
+  inp.addEventListener('blur', apply);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); inp.blur(); const nx = inputId === '#nameIn' ? $('#styleIn') : null; if (nx) nx.focus(); } });
+  paint();
+}
+function playerLabel() { return state.name + (state.style ? ' (자 ' + state.style + ')' : ''); }
+
 function missing() {
   const m = [];
   if (!state.gender) m.push('성별');
+  if (!state.name) m.push('이름');
   if (!state.stats) m.push('능력치');
   Object.entries(TABLES).forEach(([k, t]) => { if (!state.pick[k]) m.push(t.label); });
   return m;
@@ -690,7 +800,10 @@ function missing() {
 function renderMake() {
   const m = missing();
   $('#make').disabled = m.length > 0;
-  $('#makeHint').textContent = m.length ? '' : '이 구성으로 신무장을 생성합니다.';
+  let hint = m.length ? '' : '이 구성으로 신무장을 생성합니다.';
+  const best = state.history.reduce((a, h) => Math.max(a, h.total), 0);
+  if (state.stats && best > state.total) hint = '굴린 기록에 합계 ' + best + '인 결과가 있어요. 기록을 눌러 고를 수 있습니다.';
+  $('#makeHint').textContent = hint;
 }
 
 /* ---------- 동작 ---------- */
@@ -741,9 +854,10 @@ function hideSheet() { $('#sheet').hidden = true; }
 function showSheet() {
   const sh = $('#sheet'); sh.textContent = '';
   const s = state.stats, mx = Math.max(...s);
-  const h = document.createElement('h2'); h.textContent = '신무장'; sh.appendChild(h);
+  const h = document.createElement('h2'); h.textContent = state.name; sh.appendChild(h);
+  if (state.style) sh.appendChild(el('p', 'alias', '자 ' + state.style));
   const pt = document.createElement('img'); pt.className = 'portrait'; pt.src = PORTRAITS[state.gender];
-  pt.alt = (state.gender === 'male' ? '남자' : '여자') + ' 신무장'; sh.appendChild(pt);
+  pt.alt = state.name; sh.appendChild(pt);
 
   const grid = document.createElement('div'); grid.className = 'sheet-stats';
   STAT_NAMES.forEach((n, i) => {
@@ -774,7 +888,7 @@ function showSheet() {
   sh.appendChild(dl);
 
   const go = document.createElement('button'); go.type = 'button'; go.className = 'btn primary'; go.textContent = '육성 시작';
-  go.addEventListener('click', startTrain); sh.appendChild(go);
+  go.addEventListener('click', () => { snap(); startTrain(); }); sh.appendChild(go);
   const again = document.createElement('button'); again.type = 'button'; again.className = 'btn'; again.textContent = '처음부터 다시';
   again.addEventListener('click', resetAll); sh.appendChild(again);
 
@@ -783,8 +897,10 @@ function showSheet() {
 }
 
 function resetAll() {
-  Object.assign(state, { stats: null, total: 0, rolls: 0, sinceMax: 0, history: [], activeId: null, pick: { trait: null, ideology: null }, gender: null });
+  Object.assign(state, { stats: null, total: 0, rolls: 0, sinceMax: 0, history: [], activeId: null, pick: { trait: null, ideology: null }, gender: null, name: '', style: '' });
   document.querySelectorAll('#choices input, #genderOpts input').forEach(i => { i.checked = false; });
+  $('#nameIn').value = ''; $('#styleIn').value = ''; $('#nameCnt').textContent = '0 / ' + NAME_MAX; $('#styleCnt').textContent = '0 / ' + NAME_MAX;
+  $('#nameCnt').classList.remove('max'); $('#styleCnt').classList.remove('max');
   document.querySelectorAll('.opt').forEach(o => o.classList.remove('on'));
   hideSheet(); renderStats(); renderHistory(); renderCount(); renderMake();
   window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
@@ -809,25 +925,26 @@ function startTrain() {
 
 function renderMe() {
   const box = $('#trMe'); box.textContent = '';
-  const img = el('img'); img.src = PORTRAITS[state.gender]; img.alt = '신무장';
+  const img = el('img'); img.src = PORTRAITS[state.gender]; img.alt = state.name;
   const t = el('div'); const tr = pickedItem('trait'), id = pickedItem('ideology');
-  t.append(el('b', null, '신무장'), el('span', null, '개성 ' + tr.name + ' · 사상 ' + id.name));
+  t.append(el('b', null, playerLabel()), el('span', null, '개성 ' + tr.name + ' · 사상 ' + id.name));
   box.append(img, t);
 }
-function renderTrainStats(upIdx) {
+function renderTrainStats(upIdx, vals) {
+  const v = vals || train.stats;
   const g = $('#trStats'); g.textContent = '';
-  const mx = Math.max(...train.stats);
+  const mx = Math.max(...v);
   STAT_NAMES.forEach((n, i) => {
-    const d = el('div'); if (train.stats[i] === mx) d.classList.add('top'); if (i === upIdx) d.classList.add('up');
-    d.append(el('small', null, n), el('strong', null, train.stats[i]));
+    const d = el('div'); if (v[i] === mx) d.classList.add('top'); if (i === upIdx) d.classList.add('up');
+    d.append(el('small', null, n), el('strong', null, v[i]));
     g.appendChild(d);
   });
 }
-function renderOps() {
+function renderOps(newOp) {
   const o = $('#trOps'); o.textContent = '';
   if (!train.ops.length) { o.textContent = '획득한 작전 없음'; return; }
   o.append('획득한 작전  ');
-  train.ops.forEach(op => o.appendChild(el('b', null, op.name)));
+  train.ops.forEach(op => o.appendChild(el('b', op === newOp ? 'new' : null, op.name)));
 }
 
 function sessionLabel() {
@@ -873,14 +990,15 @@ function resolve(opt) {
 function act(opt) {
   if (train.busy) return; train.busy = true;
   const out = resolve(opt);
-  let msg = '이번에는 뚜렷한 소득이 없었습니다.', cls = '', up = null;
+  let msg = '이번에는 뚜렷한 소득이 없었습니다.', cls = '', up = null, addN = 0, got = null;
+  const prev = train.stats.slice();
   if (out.type === 'stat') {
     const cur = train.stats[out.stat], add = Math.min(CFG.gain, CFG.growMax - cur);
-    if (add > 0) { train.stats[out.stat] = cur + add; up = out.stat; msg = STAT_NAMES[out.stat] + '이 올랐습니다. (+' + add + ')'; cls = 'gain'; }
+    if (add > 0) { train.stats[out.stat] = cur + add; up = out.stat; addN = add; msg = STAT_NAMES[out.stat] + '이 올랐습니다. (+' + add + ')'; cls = 'gain'; }
   } else if (out.type === 'op') {
     const free = OPS.filter(o => !train.ops.some(h => h.id === o.id));   // 중복 획득 방지
     if (free.length) {
-      const got = free[Math.floor(Math.random() * free.length)];
+      got = free[Math.floor(Math.random() * free.length)];
       train.ops.push(got); msg = '작전 「' + got.name + '」' + josa(got.name, '을', '를').slice(got.name.length) + ' 얻었습니다.'; cls = 'gain';
     }
   }
@@ -888,10 +1006,30 @@ function act(opt) {
   if (cls) line.appendChild(el('strong', null, msg)); else line.append(msg);
   $('#trLog').appendChild(line);
   train.act++;
-  renderTrainStats(up); renderOps();
   document.querySelectorAll('#trAct .act').forEach(b => { b.disabled = true; });
+  let wait = 650;
+  if (up !== null && !reduce) {
+    // +2가 떠올랐다 사라지는 사이에 능력치 숫자가 올라감
+    renderTrainStats(null, prev);
+    const chip = $('#trStats').children[up];
+    chip.appendChild(el('span', 'gainf', '+' + addN));
+    setTimeout(() => {
+      const st = chip.querySelector('strong'); st.textContent = train.stats[up];
+      chip.classList.remove('up'); void chip.offsetWidth; chip.classList.add('up');
+    }, 650);
+    setTimeout(() => renderTrainStats(), 1350);
+    wait = 1400;
+  } else renderTrainStats(up);
+  if (got && !reduce) {
+    const t = el('div', 'op-toast'); t.setAttribute('role', 'status');
+    t.append(el('small', null, '작전 획득'), el('b', null, got.name));
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1850);
+    setTimeout(() => renderOps(got), 500);
+    wait = 1900;
+  } else renderOps(got);
   const done = train.act >= CFG.actionsPerSession;
-  setTimeout(() => { train.busy = false; done ? endSession() : renderSession(); }, reduce ? 0 : 650);
+  setTimeout(() => { train.busy = false; done ? endSession() : renderSession(); }, reduce ? 0 : wait);
 }
 
 function endSession() {
@@ -900,7 +1038,7 @@ function endSession() {
   const goTournament = last || CFG.schedule[train.n + 1] !== t;
   const nx = $('#trNext'); nx.textContent = '';
   const b = el('button', 'btn primary', goTournament ? '일기토 대회 ' + t + '회차로' : '다음 육성으로'); b.type = 'button';
-  b.addEventListener('click', () => goTournament ? tournament(t) : nextSession());
+  b.addEventListener('click', () => { snap(); goTournament ? tournament(t) : nextSession(); });
   nx.appendChild(b);
 }
 function nextSession() { train.n++; train.act = 0; renderSession(); window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); }
@@ -1024,7 +1162,7 @@ function duel(F, seed, wantLog) {
 const tour = { round: 0, stage: 0, alive: [], speed: 1, timer: null, place: '' };
 
 function makeNpcs(r) {
-  const seen = new Set(), pool = NPC_TABLE.filter(n => !seen.has(n.name) && seen.add(n.name));
+  const seen = new Set(), pool = NPC_TABLE.filter(n => n.name !== state.name && !seen.has(n.name) && seen.add(n.name));
   const pick = shuffle(pool).slice(0, 31);
   while (pick.length < 31) pick.push({ name: '무명 장수 ' + (pick.length + 1), stats: [45, 45, 45], trait: TABLES.trait.items[0].id, op: '' });
   const bonus = TOUR.statBonus[r - 1], oc = TOUR.opChance[r - 1];
@@ -1037,7 +1175,7 @@ function makeNpcs(r) {
   }));
 }
 function playerFighter() {
-  return { name: '신무장', stats: train.stats.slice(), trait: state.pick.trait, ops: train.ops.map(o => o.id), forfeit: false, me: true };
+  return { name: state.name, alias: state.style, stats: train.stats.slice(), trait: state.pick.trait, ops: train.ops.map(o => o.id), forfeit: false, me: true };
 }
 const seed = () => (Math.random() * 4294967296) >>> 0;
 
@@ -1052,13 +1190,18 @@ function pairs() { const p = []; for (let i = 0; i < tour.alive.length; i += 2) 
 function myPair() { return pairs().find(p => p[0].me || p[1].me); }
 function traitName(id) { return TABLES.trait.items.find(x => x.id === id).name; }
 
+function statLine(st) {
+  const sm = el('small', 'st3');
+  STAT_NAMES.forEach((n, i) => { if (i) sm.append(' · '); sm.appendChild(el('span', null, n + ' ' + st[i])); });
+  return sm;
+}
 function fighterBox(f, side) {
   const box = el('div', 'fz' + (f.me ? ' me' : '')); box.dataset.side = side;
   const face = el('div', 'face');
   if (f.me) { const img = el('img'); img.src = PORTRAITS[state.gender]; img.alt = ''; face.appendChild(img); }
   else face.textContent = f.name[0];
-  box.append(face, el('b', null, f.name),
-    el('small', null, '통솔 ' + f.stats[0] + ' · 무력 ' + f.stats[1] + ' · 지력 ' + f.stats[2]),
+  box.append(face, el('b', null, f.name), ...(f.alias ? [el('small', null, '자 ' + f.alias)] : []),
+    statLine(f.stats),
     el('small', null, '개성 ' + traitName(f.trait)));
   const bar = el('div', 'hpbar'); bar.appendChild(el('i'));
   box.append(bar, el('div', 'hpnum', BATTLE.hp + ' / ' + BATTLE.hp));
@@ -1081,12 +1224,12 @@ function showStage() {
   if (me.forfeit) {
     ctl.appendChild(el('p', 'tr-sub', '결사의 대가로 이번 경기에 나설 수 없습니다.'));
     const b = el('button', 'btn primary', '결과 보기'); b.type = 'button';
-    b.addEventListener('click', () => finishStage({ winner: p[0].me ? 1 : 0, forfeit: true }));
+    b.addEventListener('click', () => { snap(); finishStage({ winner: p[0].me ? 1 : 0, forfeit: true }); });
     ctl.appendChild(b);
   } else if (foe.forfeit) {
     ctl.appendChild(el('p', 'tr-sub', foe.name + ', 결사의 대가로 경기에 나서지 못합니다.'));
     const b = el('button', 'btn primary', '부전승으로 진출'); b.type = 'button';
-    b.addEventListener('click', () => finishStage({ winner: p[0].me ? 0 : 1, forfeit: true }));
+    b.addEventListener('click', () => { snap(); finishStage({ winner: p[0].me ? 0 : 1, forfeit: true }); });
     ctl.appendChild(b);
   } else {
     const b = el('button', 'btn primary', '경기 시작'); b.type = 'button';
@@ -1148,7 +1291,7 @@ function playMatch(p) {
     box.appendChild(el('p', null, note));
     main.insertBefore(box, ul);
     const b = el('button', 'btn primary', '계속'); b.type = 'button';
-    b.addEventListener('click', () => finishStage(res));
+    b.addEventListener('click', () => { snap(); finishStage(res); });
     const wrap = el('div', 'make'); wrap.appendChild(b); main.insertBefore(wrap, ul);
   }
   sp.addEventListener('click', () => { tour.speed = tour.speed === 1 ? 2 : 1; sp.textContent = tour.speed === 1 ? '2배속' : '1배속'; });
@@ -1194,7 +1337,7 @@ function finishStage(res) {
   $('#tvLede').textContent = stageName + ' 통과';
   main.appendChild(othersList(others, stageName));
   const b = el('button', 'btn primary', TOUR.rounds[tour.stage] + ' 진행'); b.type = 'button';
-  b.addEventListener('click', showStage);
+  b.addEventListener('click', () => { snap(); showStage(); });
   const wrap = el('div', 'make'); wrap.appendChild(b); main.prepend(wrap);
   window.scrollTo({ top: 0, behavior: 'auto' });
 }
@@ -1224,6 +1367,7 @@ function endTournament(lastResults) {
   const last = tour.round === CFG.schedule[CFG.schedule.length - 1];
   const b = el('button', 'btn primary', last || (TOUR.endOnLoss && tour.place !== '우승') ? '결과 보기' : '다음 육성으로'); b.type = 'button';
   b.addEventListener('click', () => {
+    snap();
     $('#tourView').hidden = true; $('#trainView').hidden = false;
     if (TOUR.endOnLoss && tour.place !== '우승') return finishTrain();
     afterTournament();
@@ -1250,14 +1394,73 @@ function finishTrain() {
   train.results.forEach(r => dl.append(el('dt', null, '대회 ' + r.round), el('dd', null, r.place)));
   card.appendChild(dl);
   const b = el('button', 'btn', '처음부터 다시'); b.type = 'button'; b.style.marginTop = '18px';
-  b.addEventListener('click', () => { $('#trainView').hidden = true; $('#tourView').hidden = true; $('#createView').hidden = false; resetAll(); });
+  b.addEventListener('click', () => { $('#trainView').hidden = true; $('#tourView').hidden = true; $('#createView').hidden = false; resetAll(); resetHistory(); });
   card.appendChild(b); box.appendChild(card);
 }
+
+/* ============================================================
+   지난 화면 보기 (보기 전용) — 결과는 바뀌지 않음
+   화면이 넘어갈 때마다 그 화면을 사진처럼 저장하고, 뒤로가기(버튼·제스처)로 다시 볼 수 있음
+   ============================================================ */
+const hist = { run: 1, snaps: [], viewing: -1, live: null };
+const VIEWS = ['createView', 'trainView', 'tourView'];
+function liveView() { return VIEWS.map(id => document.getElementById(id)).find(v => !v.hidden) || null; }
+function snap() {
+  const v = liveView(); if (!v) return;
+  const c = v.cloneNode(true);
+  c.removeAttribute('id'); c.hidden = false;
+  c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+  c.querySelectorAll('input, button, select, textarea').forEach(e => { e.disabled = true; e.tabIndex = -1; });
+  const h1 = v.querySelector('h1'), lede = v.querySelector('.lede');
+  hist.snaps.push({ node: c, title: [h1 && h1.textContent, lede && lede.textContent].filter(Boolean).join(' · ') });
+  history.pushState({ run: hist.run, i: hist.snaps.length }, '');
+  renderHistNav();
+}
+function renderHistNav() { $('#histNav').hidden = !(hist.snaps.length && hist.viewing < 0); }
+function showSnap(k) {
+  if (hist.viewing < 0) { hist.live = liveView(); if (hist.live) hist.live.hidden = true; }
+  hist.viewing = k;
+  const sn = hist.snaps[k], body = $('#rvBody');
+  body.textContent = ''; body.appendChild(sn.node);
+  const tag = $('#rvTag'); tag.textContent = '지난 화면 ' + (k + 1) + ' / ' + hist.snaps.length;
+  tag.appendChild(el('small', null, (sn.title ? sn.title + ' — ' : '') + '보기 전용이라 결과는 바뀌지 않습니다.'));
+  $('#rvPrev').disabled = k === 0;
+  $('#reviewView').hidden = false; renderHistNav();
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}
+function showLive() {
+  if (hist.viewing < 0) return;
+  hist.viewing = -1;
+  $('#reviewView').hidden = true; $('#rvBody').textContent = '';
+  if (hist.live) hist.live.hidden = false;
+  hist.live = null; renderHistNav();
+}
+function resetHistory() {
+  hist.run++; hist.snaps = []; hist.viewing = -1; hist.live = null;
+  history.replaceState({ run: hist.run, i: 0 }, '');
+  renderHistNav();
+}
+window.addEventListener('popstate', e => {
+  const st = e.state;
+  if (!st || st.run !== hist.run) {          // 이전 판의 기록이면 지금 화면에 머묾
+    showLive();
+    if (hist.snaps.length) history.pushState({ run: hist.run, i: hist.snaps.length }, '');
+    return;
+  }
+  if (st.i >= hist.snaps.length) showLive(); else showSnap(st.i);
+});
+$('#navBack').addEventListener('click', () => history.back());
+$('#rvPrev').addEventListener('click', () => history.back());
+$('#rvNext').addEventListener('click', () => history.forward());
+$('#rvLive').addEventListener('click', () => history.go(hist.snaps.length - hist.viewing));
+// 진행 중에 창을 닫거나 새로고침하려 하면 한 번 확인
+window.addEventListener('beforeunload', e => { if (hist.snaps.length) { e.preventDefault(); e.returnValue = ''; } });
+history.replaceState({ run: hist.run, i: 0 }, '');
 
 $('#roll').addEventListener('click', roll);
 $('#make').addEventListener('click', showSheet);
 
-buildGender(); buildChoices(); renderStats(); renderHistory(); renderCount(); renderMake();
+bindName('#nameIn', '#nameCnt', 'name'); bindName('#styleIn', '#styleCnt', 'style'); buildGender(); buildChoices(); renderStats(); renderHistory(); renderCount(); renderMake();
 </script>
 </body>
 </html>
