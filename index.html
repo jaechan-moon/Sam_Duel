@@ -283,6 +283,18 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 .item-reward .cur-item small { display: block; color: var(--ink-2); font-size: 14px; }
 .item-reward .cur-item b { display: block; font-size: 18px; font-weight: 900; }
 .item-reward .cur-item span { display: block; color: var(--ink-2); font-size: 16px; }
+.modal-back { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 16, 20, .55); }
+.modal-card { width: min(420px, 100%); max-height: 90vh; overflow: auto; margin: 0 !important; box-shadow: 0 12px 40px rgba(0, 0, 0, .35); }
+.bt-result .swap { margin-top: 10px; font-size: 16px; color: var(--ink-2); }
+.tip-note { display: block; margin-top: 6px; font-size: 13px; color: var(--ink-2); font-weight: 400; }
+.tr-card .warn { margin: 10px 0 8px; color: var(--gold); font-weight: 700; }
+.btn.quit { margin-top: 14px; min-height: 44px; font-size: 16px; }
+#trNext .btn.quit { display: block; margin-top: 10px; }
+.rank-note { margin-top: 12px !important; font-size: 15px; }
+.bt-result.grand h2 { color: var(--gold); font-size: 34px; animation: pop .9s ease-out 1; }
+.champ-banner { margin: 0 0 14px; padding: 18px 16px; text-align: center; background: var(--gold-bg); border: 2px solid var(--gold); border-radius: 12px; animation: pop .9s ease-out 1; }
+.champ-banner b { display: block; font-size: 26px; font-weight: 900; color: var(--gold); }
+.champ-banner span { display: block; margin-top: 4px; color: var(--ink); font-weight: 700; }
 .swap-btns { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
 .item-reward .swap { margin-top: 8px; font-size: 16px; }
 .tr-ops b.new { display: inline-block; animation: pop .8s ease-out 1; color: var(--gold); }
@@ -625,6 +637,31 @@ const DIALOG = {
    "곧 반격해주마!",
    "그 힘, 내가 쓰겠다.",
    "받은 만큼 갚아주마!"
+  ],
+  "만인지적": [
+   "만 명이 와도 두렵지 않다!",
+   "기세가 점점 오른다!",
+   "내 앞을 막을 자 누구냐!"
+  ],
+  "석병팔진": [
+   "내게 벗어날 수 있겠나?",
+   "팔진에 갇혔구나!",
+   "길을 잃었구나. 하하!"
+  ],
+  "천하무쌍": [
+   "천하에 나를 당할 자 없다!",
+   "이 일격으로 끝이다!",
+   "내 일격을 받아라!"
+  ],
+  "인중여포": [
+   "당장 끝내주마!",
+   "승부는 여기서 정한다!",
+   "물러설 길은 없다!"
+  ],
+  "태평요술": [
+   "신묘한 기운이 감돈다.",
+   "기운이 되살아난다!",
+   "아직 쓰러질 수 없다!"
   ]
  },
  "misc": {
@@ -679,11 +716,15 @@ const CFG = {
   choiceCount: 12,             // 한 번에 보여줄 선택지 수 (12 = 전부)
   gain: 2,                     // 능력치가 오를 때 상승량
   growMax: 100,                // 육성 중 능력치 1개 최대값
-  spillGain: 1,                // 사상 덤: 어떤 탭이든 육성에 성공하면, 사상의 능력치가 확률(TABLES 사상의 grow)로 이만큼 더 오름
+  spillChance: 0.25,           // 사상 덤: 어떤 탭이든 육성에 성공하면 이 확률로, 사상의 능력치 중 '1개만' 더 오름 (어느 능력치인지는 TABLES 사상의 grow 비율대로)
+  spillGain: 1,                // 사상 덤으로 오르는 양
+  itemEvent: [0.03, 0.03, 0.03, 0.03, 0.03],   // 기연: 육성 행동이 끝날 때마다 (탭과 상관없이) 이 확률로 장비를 우연히 발견 (육성 회차별)
   // 전법은 탭과 상관없이, 행동이 끝날 때마다 우연히 얻음 (최대 maxOps개). 육성 1~5회차별 확률
   maxOps: 2,                   // 신무장이 가질 수 있는 전법 수
   maxItems: 1,                 // 신무장이 가질 수 있는 장비 수 (새로 받으면 교체)
-  itemRounds: [1, 2],          // 이 대회에서 우승하면 장비를 무작위로 받음
+  itemRounds: [1, 2, 4, 5, 6, 7, 8, 9, 10],   // 이 대회에서 우승하면 장비를 무작위로 받음
+  extraFrom: 4,                // 이 회차부터는 '도전' (랭킹 미반영, 지면 도전 종료). 3회차까지만 랭킹에 반영
+  extraMax: 10,                // 도전할 수 있는 마지막 회차
   opEvent: [0.03, 0.06, 0.06, 0.09, 0.09],
   // 육성 회차별 능력치 상승 확률 보정 (%p를 더함). 4·5회차는 2·3회차 보정 위에 더 얹은 누적값
   growBonus: [
@@ -740,7 +781,13 @@ const BATTLE = {
   condRate: 0.30,                     // 조건부 전법(결사 제외)의 조건 중 매 공격 발동 확률
   fleeHp: 40, fleeSec: 5, fleeMult: 0.8,   // 주위상계: 내 체력 % 이하 / 지속(초) / 받는 피해 배율
   pursuitHp: 40, pursuitDmg: 6,       // 추격: 상대 체력 % 이하 / 절대 피해
-  stealN: 3, stealHeal: 0.35          // 초선차전: 피격 횟수 / 회복 비율
+  stealN: 3, stealHeal: 0.35,         // 초선차전: 피격 횟수 / 회복 비율
+  rushSec: 10, rushStep: 0.10, rushMax: 4,   // 만인지적: 지속(초) / 공격 성공마다 쌓이는 공격력 / 최대 쌓임 횟수
+  sureN: 2,                           // 천하무쌍: 반드시 치명타가 되는 공격 횟수
+  sealSelf: 2,                        // 석병팔진: 상대가 봉인된 동안 내 치명타 확률 배율
+  sealSec: 15,                        // 석병팔진: 상대 치명타 봉인 지속(초)
+  gambleRate: 0.60, gambleFrac: 0.40, gambleCost: 8,   // 인중여포: 성공 확률 / 성공 시 깎는 상대 현재 체력 비율 / 실패 시 내가 잃는 체력
+  healHp: 50, healAmt: 6              // 태평요술: 내 체력 % 이하일 때 발동 / 회복량
 };
 const TOUR = {
   rounds: ['32강', '16강', '8강', '4강', '결승'],
@@ -748,15 +795,24 @@ const TOUR = {
   opChance: [0, 1, 1],         // 회차별 상대가 표의 전법을 사용할 확률 (1회차 없음, 2회차부터 전원)
   secondOp: [0, 0, 1],         // 회차별 상대가 두 번째 전법(표의 전법과 다른 무작위 1개)을 가질 확률 (표의 전법이 있을 때만)
   resolveSkipsNext: true,      // 결사로 이기면 다음 경기 부전패
-  endOnLoss: false             // true면 탈락 시 게임 종료
+  endOnLoss: false             // true면 탈락 시 게임 종료 (도전 회차는 항상 탈락 시 종료)
 };
+// 도전 회차(4~10): 상대 능력치 보정을 회차마다 +3씩 더 올림 (일반·S 동일, 최대 100), 상대는 전원 전법 2개(기본 1 + 무작위 1)
+const EXTRA_STEP = 3;
+for (let r = CFG.extraFrom; r <= CFG.extraMax; r++) {
+  const v = 7.5 + EXTRA_STEP * (r - 3);
+  TOUR.statBonus.push([v, v]); TOUR.opChance.push(1); TOUR.secondOp.push(1);
+}
+const BASE_SCHEDULE = CFG.schedule.slice();             // 기본 일정(육성 5회, 대회 3회)
+const BASE_SESSIONS = BASE_SCHEDULE.length;
+const BASE_ROUNDS = BASE_SCHEDULE[BASE_SCHEDULE.length - 1];
 // 상대 장수 표 (NPC_Table.xlsx 기준): 이름 / 자(없으면 빈칸) / 통솔·무력·지력 / 개성 / 전법. 대회마다 이 중 31명을 무작위로 뽑습니다
 const NPC_TABLE = [
   { name: '관우', alias: '운장', stats: [61, 63, 42], trait: 'valor', op: 'deathblow', tier: 'S' },
   { name: '장비', alias: '익덕', stats: [64, 79, 20], trait: 'charge', op: 'bluff', tier: 'S' },
   { name: '유비', alias: '현덕', stats: [44, 43, 44], trait: 'prudent', op: 'flee', tier: 'C' },
-  { name: '조운', alias: '자룡', stats: [60, 63, 43], trait: 'assault', op: 'counter', tier: 'S' },
-  { name: '마초', alias: '맹기', stats: [66, 76, 20], trait: 'assault', op: 'pursuit', tier: 'S' },
+  { name: '조운', alias: '자룡', stats: [60, 63, 43], trait: 'assault', op: 'rush', tier: 'S' },
+  { name: '마초', alias: '맹기', stats: [66, 76, 20], trait: 'assault', op: 'gamble', tier: 'S' },
   { name: '마대', alias: '', stats: [55, 66, 20], trait: 'cunning', op: 'deathblow', tier: 'B' },
   { name: '위연', alias: '문장', stats: [60, 63, 32], trait: 'iki', op: 'resolve', tier: 'A' },
   { name: '황충', alias: '한승', stats: [55, 70, 29], trait: 'kiai', op: 'deathblow', tier: 'A' },
@@ -767,7 +823,7 @@ const NPC_TABLE = [
   { name: '서황', alias: '공명', stats: [60, 62, 34], trait: 'prudent', op: 'pursuit', tier: 'A' },
   { name: '장합', alias: '준예', stats: [58, 59, 37], trait: 'cunning', op: 'lure', tier: 'A' },
   { name: '장료', alias: '문원', stats: [62, 61, 45], trait: 'charge', op: 'pursuit', tier: 'S' },
-  { name: '여포', alias: '봉선', stats: [61, 83, 20], trait: 'valor', op: 'deathblow', tier: 'S' },
+  { name: '여포', alias: '봉선', stats: [61, 83, 20], trait: 'valor', op: 'peerless', tier: 'S' },
   { name: '위속', alias: '', stats: [47, 55, 20], trait: 'cunning', op: 'flee', tier: 'D' },
   { name: '전위', alias: '', stats: [56, 77, 20], trait: 'iki', op: 'resolve', tier: 'A' },
   { name: '허저', alias: '중강', stats: [56, 90, 20], trait: 'kiai', op: 'bitter', tier: 'S' },
@@ -792,14 +848,14 @@ const NPC_TABLE = [
   { name: '서성', alias: '문향', stats: [54, 48, 42], trait: 'watch', op: 'wall', tier: 'B' },
   { name: '강유', alias: '백약', stats: [54, 48, 51], trait: 'cunning', op: 'chain', tier: 'A' },
   { name: '주창', alias: '', stats: [43, 77, 20], trait: 'iki', op: 'resolve', tier: 'B' },
-  { name: '맹획', alias: '', stats: [55, 66, 20], trait: 'valor', op: 'flee', tier: 'B' },
+  { name: '맹획', alias: '', stats: [55, 66, 20], trait: 'valor', op: 'heal', tier: 'B' },
   { name: '축융', alias: '', stats: [38, 74, 20], trait: 'assault', op: 'fire', tier: 'C' },
   { name: '엄안', alias: '', stats: [51, 55, 37], trait: 'watch', op: 'resolve', tier: 'B' },
   { name: '안량', alias: '', stats: [57, 75, 20], trait: 'assault', op: 'first', tier: 'A' },
   { name: '문추', alias: '', stats: [57, 73, 20], trait: 'charge', op: 'deathblow', tier: 'A' },
   { name: '고순', alias: '', stats: [61, 58, 23], trait: 'charge', op: 'first', tier: 'B' },
   { name: '조홍', alias: '자렴', stats: [54, 56, 20], trait: 'watch', op: 'steal', tier: 'C' },
-  { name: '제갈량', alias: '공명', stats: [70, 20, 80], trait: 'prudent', op: 'emptycity', tier: 'S' },
+  { name: '제갈량', alias: '공명', stats: [70, 20, 80], trait: 'prudent', op: 'stone', tier: 'S' },
   { name: '방통', alias: '사원', stats: [33, 20, 84], trait: 'cunning', op: 'chain', tier: 'B' },
   { name: '사마의', alias: '중달', stats: [68, 33, 69], trait: 'cunning', op: 'wall', tier: 'S' },
   { name: '곽가', alias: '봉효', stats: [26, 20, 78], trait: 'watch', op: 'first', tier: 'C' },
@@ -810,8 +866,8 @@ const NPC_TABLE = [
 // 개성·사상: 선택 항목 / 전법: 선택 불가, 육성 중 무작위 획득
 // - 개성: 효과가 곧 설명이라 화면에 그대로 보여줍니다 (전투 시 영향)
 // - 사상: desc만 화면에 보이고 effect/grow는 내부 값입니다 (플레이어에게 비공개)
-//   grow: 능력치 번호(0통솔 1무력 2지력) → 덤 확률. 어떤 탭이든 육성에 성공하면 이 확률로 그 능력치가 CFG.spillGain만큼 더 오름
-//         (모든 사상의 덤 총량을 비슷하게: 한 능력치 20% / 두 능력치 각 10% / 세 능력치 각 7%)
+//   grow: 능력치 번호(0통솔 1무력 2지력) → 비율. 어떤 탭이든 육성에 성공하면 CFG.spillChance 확률로 덤이 터지고,
+//         터지면 이 비율대로 능력치 '1개만' CFG.spillGain만큼 더 오름 (모든 사상의 덤 확률이 똑같음)
 const TABLES = {
   trait: { label: '개성', items: [
     { id: 'valor',    name: '용맹', desc: '체력이 80% 이상일 때 치명타 확률 3배 상승' },
@@ -825,26 +881,26 @@ const TABLES = {
   ]},
   ideology: { label: '사상', items: [
     { id: 'hegemon',  name: '패도', desc: '오직 힘만이 모든 것을 좌우한다고 생각하며 살아감',
-      effect: '육성에 성공하면 20% 확률로 무력이 덤으로 +1',
-      grow: { 1: 0.20 } },
+      effect: '육성에 성공하면 25% 확률로 무력이 덤으로 +1',
+      grow: { 1: 1 } },
     { id: 'confucian',name: '유가', desc: '예와 덕으로 일생을 살아감',
-      effect: '육성에 성공하면 통솔·지력이 각각 10% 확률로 덤으로 +1',
-      grow: { 0: 0.10, 2: 0.10 } },
+      effect: '육성에 성공하면 25% 확률로 통솔 또는 지력 중 하나가 덤으로 +1',
+      grow: { 0: 0.5, 2: 0.5 } },
     { id: 'daoist',   name: '도가', desc: '흐름에 맡기고 거스르지 않으며 살아감',
-      effect: '육성에 성공하면 20% 확률로 통솔이 덤으로 +1',
-      grow: { 0: 0.20 } },
+      effect: '육성에 성공하면 25% 확률로 통솔이 덤으로 +1',
+      grow: { 0: 1 } },
     { id: 'legalist', name: '법가', desc: '법을 지키며 공명정대하게 살아감',
-      effect: '육성에 성공하면 20% 확률로 지력이 덤으로 +1',
-      grow: { 2: 0.20 } },
+      effect: '육성에 성공하면 25% 확률로 지력이 덤으로 +1',
+      grow: { 2: 1 } },
     { id: 'schemer',  name: '권모', desc: '승리를 위해서라면 그 어떤 과정도 신경쓰지 않음',
-      effect: '육성에 성공하면 무력·통솔이 각각 10% 확률로 덤으로 +1',
-      grow: { 0: 0.10, 1: 0.10 } },
+      effect: '육성에 성공하면 25% 확률로 통솔 또는 무력 중 하나가 덤으로 +1',
+      grow: { 0: 0.5, 1: 0.5 } },
     { id: 'utilit',   name: '공리', desc: '대를 위해 소는 희생할 수 있으며 큰 판세를 파악함',
-      effect: '육성에 성공하면 무력·지력이 각각 10% 확률로 덤으로 +1',
-      grow: { 1: 0.10, 2: 0.10 } },
+      effect: '육성에 성공하면 25% 확률로 무력 또는 지력 중 하나가 덤으로 +1',
+      grow: { 1: 0.5, 2: 0.5 } },
     { id: 'righteous',name: '정도', desc: '정도의 길을 걸으며 어느 상황에나 협을 행함',
-      effect: '육성에 성공하면 통솔·무력·지력이 각각 7% 확률로 덤으로 +1',
-      grow: { 0: 0.07, 1: 0.07, 2: 0.07 } }
+      effect: '육성에 성공하면 25% 확률로 통솔·무력·지력 중 하나가 덤으로 +1',
+      grow: { 0: 1 / 3, 1: 1 / 3, 2: 1 / 3 } }
   ]}
 };
 
@@ -879,26 +935,42 @@ const OPS = [
   { id: 'pursuit',   name: '추격',     desc: '쓰러져 가는 적의 뒤를 끝까지 쫓는다.',
     effect: '상대 체력이 40% 이하일 때 발동 (조건 중 매 공격 30%). 상대에게 절대 피해 6 (방어·회피 무시)' },
   { id: 'steal',     name: '초선차전', desc: '적의 공격을 받아 오히려 힘을 얻는다.',
-    effect: '발동 후 다음 3번 피격 때 받은 피해의 35%를 체력으로 회복' }
+    effect: '발동 후 다음 3번 피격 때 받은 피해의 35%를 체력으로 회복' },
+  { id: 'rush',      name: '만인지적', desc: '만 명의 적도 홀로 당해 내는 기세.',
+    effect: '10초간 공격에 성공할 때마다 공격력이 10%씩 쌓임 (최대 4번)' },
+  { id: 'stone',     name: '석병팔진', desc: '돌무더기로 쌓은 진에 적을 가둔다.',
+    effect: '15초간 상대의 치명타가 나오지 않고, 내 치명타 확률이 2배가 됨' },
+  { id: 'peerless',  name: '천하무쌍', desc: '천하에 맞설 자가 없다는 무용.',
+    effect: '다음 공격 2회가 반드시 치명타 (치명타 방어 무시, 회피된 공격은 세지 않음)' },
+  { id: 'gamble',    name: '인중여포', desc: '사람 중에는 여포라 일컬어진 승부사의 기질.',
+    effect: '성공(60%) 시 상대 현재 체력의 40%를 깎음, 실패 시 내 체력 8을 잃음 (체력은 최소 1 유지)' },
+  { id: 'heal',      name: '태평요술', desc: '태평도의 신묘한 술법으로 기운을 되찾는다.',
+    effect: '내 체력이 50% 이하일 때 발동 (조건 중 매 공격 30%). 체력 6을 회복' }
 ];
 // 유저에게 보이는 전법 효과 문구 (발동 확률은 표기하지 않음)
 const OP_TIP = {
- "deathblow": "상대 현재 체력의 20%를 깎는다.",
- "first": "전투 시작 때 먼저 한 번 공격한다.",
+ "deathblow": "일정 확률로 상대 현재 체력의 20%를 깎는다.",
+ "first": "일정 확률로 전투 시작 때 먼저 한 번 공격한다.",
  "counter": "상대가 일격필살을 쓰면 그 피해를 상대에게 되돌린다.",
- "lure": "상대에게 방어와 회피를 무시하는 피해 12를 준다.",
- "resolve": "체력이 상대보다 40 이상 낮으면 반드시 이기지만, 다음 경기에 나설 수 없다.",
- "endure": "받는 피해가 3번 동안 절반으로 줄어든다.",
- "emptycity": "상대의 다음 공격 1회를 무효로 만든다.",
- "fire": "상대가 3번 동안 매번 3의 화상 피해를 입는다.",
- "chain": "다음 3번의 공격이 상대의 회피를 무시하고 피해가 1.2배가 된다.",
- "bitter": "체력 8을 잃는 대신 6초간 공격력이 1.6배가 된다.",
- "bluff": "5초간 상대의 공격력이 0.75배가 된다.",
- "wall": "5초간 받는 피해가 0.7배가 된다.",
- "flee": "체력이 40% 이하일 때 5초간 받는 피해가 0.8배가 된다.",
- "pursuit": "상대 체력이 40% 이하일 때 방어와 회피를 무시하는 피해 6을 준다.",
- "steal": "다음 3번 맞을 때 받은 피해의 35%를 체력으로 회복한다."
+ "lure": "일정 확률로 상대에게 방어와 회피를 무시하는 피해 12를 준다.",
+ "resolve": "체력이 상대보다 40 이상 낮을 때 일정 확률로 발동해 반드시 이기지만, 다음 경기에 나설 수 없다.",
+ "endure": "일정 확률로 받는 피해가 3번 동안 절반으로 줄어든다.",
+ "emptycity": "일정 확률로 상대의 다음 공격 1회를 무효로 만든다.",
+ "fire": "일정 확률로 상대가 3번 동안 매번 3의 화상 피해를 입는다.",
+ "chain": "일정 확률로 다음 3번의 공격이 상대의 회피를 무시하고 피해가 1.2배가 된다.",
+ "bitter": "일정 확률로 체력 8을 잃는 대신 6초간 공격력이 1.6배가 된다.",
+ "bluff": "일정 확률로 5초간 상대의 공격력이 0.75배가 된다.",
+ "wall": "일정 확률로 5초간 받는 피해가 0.7배가 된다.",
+ "flee": "체력이 40% 이하일 때 일정 확률로 5초간 받는 피해가 0.8배가 된다.",
+ "pursuit": "상대 체력이 40% 이하일 때 일정 확률로 방어와 회피를 무시하는 피해 6을 준다.",
+ "steal": "일정 확률로 다음 3번 맞을 때 받은 피해의 35%를 체력으로 회복한다.",
+ "rush": "일정 확률로 10초간 공격에 성공할 때마다 공격력이 10%씩 쌓인다. (최대 4번)",
+ "stone": "일정 확률로 15초간 상대의 치명타가 나오지 않고, 내 치명타 확률이 2배가 된다.",
+ "peerless": "일정 확률로 다음 공격 2회가 반드시 치명타가 된다.",
+ "gamble": "일정 확률로 승부수를 던진다. 성공하면 상대 현재 체력의 40%를 깎지만, 실패하면 내 체력 8을 잃는다.",
+ "heal": "체력이 50% 이하일 때 일정 확률로 체력 6을 회복한다."
 };
+const OP_NOTE = '※ 발동은 확률에 따라 달라지며, 한 경기에 최대 한 번 발동합니다.';
 
 
 // 장비 28종 (Item_Table.xlsx 기준): 대회 1·2회차에서 우승하면 무작위로 1개 지급, 1개만 보유 (새로 받으면 교체)
@@ -1274,6 +1346,7 @@ function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.
 function pickedItem(k) { return TABLES[k].items.find(x => x.id === state.pick[k]); }
 
 function startTrain() {
+  CFG.schedule = BASE_SCHEDULE.slice();
   train.n = 0; train.act = 0; train.busy = false;
   train.stats = state.stats.slice(); train.base = state.stats.slice(); train.ops = []; train.item = null; train.results = [];
   $('#createView').hidden = true; $('#trainView').hidden = false;
@@ -1308,7 +1381,7 @@ function toggleTip(anchor, op) {
   if (tipEl && tipFor === anchor) return closeTip();
   closeTip();
   const t = el('div', 'tip'); t.setAttribute('role', 'dialog'); t.setAttribute('aria-label', op.name + ' 효과');
-  t.append(el('b', null, '전법 ' + op.name), el('span', 'tip-desc', op.desc), el('span', 'tip-eff', OP_TIP[op.id] || ''));
+  t.append(el('b', null, '전법 ' + op.name), el('span', 'tip-desc', op.desc), el('span', 'tip-eff', OP_TIP[op.id] || ''), el('span', 'tip-note', OP_NOTE));
   document.body.appendChild(t); tipEl = t; tipFor = anchor;
   const r = anchor.getBoundingClientRect(), sx = window.scrollX, sy = window.scrollY, w = t.offsetWidth, h = t.offsetHeight;
   let left = clamp(r.left + r.width / 2 - w / 2, 12, window.innerWidth - w - 12);
@@ -1338,12 +1411,25 @@ function renderOps(newOp) {
 }
 
 function sessionLabel() {
+  if (train.n >= BASE_SESSIONS) return '추가 육성 · 일기토 대회 ' + CFG.schedule[train.n] + '회차 전 (랭킹 미반영)';
   return '육성 ' + (train.n + 1) + ' / ' + CFG.schedule.length + ' · 일기토 대회 ' + CFG.schedule[train.n] + '회차 전';
 }
 
 // 이번 행동에 보여줄 선택지 (choiceCount가 전체보다 작으면 무작위로 뽑음)
 function pickChoices() {
   return CFG.choiceCount >= TRAIN.length ? TRAIN : shuffle(TRAIN).slice(0, CFG.choiceCount);
+}
+
+// 도전 회차(추가 육성) 중에는 언제든 그만두고 결과를 볼 수 있음 (실수로 누르지 않게 두 번 눌러야 함)
+function quitButton() {
+  const b = el('button', 'btn quit', '그만두고 결과 보기'); b.type = 'button';
+  let armed = false, timer = null;
+  b.addEventListener('click', () => {
+    if (train.busy) return;
+    if (!armed) { armed = true; b.textContent = '정말 그만둘까요? 한 번 더 누르면 종료됩니다'; clearTimeout(timer); timer = setTimeout(() => { armed = false; b.textContent = '그만두고 결과 보기'; }, 4000); return; }
+    clearTimeout(timer); snap(); finishTrain();
+  });
+  return b;
 }
 
 function renderSession() {
@@ -1362,6 +1448,7 @@ function renderSession() {
     grid.appendChild(b);
   });
   box.appendChild(grid);
+  if (train.n >= BASE_SESSIONS) box.appendChild(quitButton());
 }
 
 // 한 번의 행동 결과를 결정
@@ -1371,7 +1458,7 @@ function resolve(opt) {
     for (const [si, w] of Object.entries(opt.to)) { if (r < w) return { type: 'stat', stat: +si }; r -= w; }
     const k = Object.keys(opt.to); return { type: 'stat', stat: +k[k.length - 1] };
   }
-  const sb = CFG.growBonus[train.n] || { stat: 0 };      // 이번 육성 회차 보정
+  const sb = CFG.growBonus[Math.min(train.n, CFG.growBonus.length - 1)] || { stat: 0 };      // 추가 육성은 마지막 회차 값      // 이번 육성 회차 보정
   const gain = opt.gain > 0 ? opt.gain + sb.stat : 0;
   const outs = [];
   Object.entries(opt.to).forEach(([si, w]) => {
@@ -1392,28 +1479,38 @@ function act(opt) {
     const cur = train.stats[out.stat], add = Math.min(CFG.gain, CFG.growMax - cur);
     if (add > 0) { train.stats[out.stat] = cur + add; up = out.stat; addN = add; train.hit++; msg = STAT_NAMES[out.stat] + '이 올랐습니다. (+' + add + ')'; cls = 'gain'; }
   }
-  // 사상 덤: 육성에 성공하면 탭과 상관없이, 사상의 능력치가 확률로 더 오름 (사상 효과는 플레이어에게 비공개)
+  // 사상 덤: 육성에 성공하면 탭과 상관없이, 일정 확률로 사상의 능력치 중 '1개만' 더 오름 (사상 효과는 플레이어에게 비공개)
   const ups = up !== null ? { [up]: addN } : {};
-  if (up !== null) Object.entries(pickedItem('ideology').grow || {}).forEach(([si, p]) => {
-    const s = +si, a = Math.min(CFG.spillGain, CFG.growMax - train.stats[s]);
-    if (a > 0 && Math.random() < p) {
+  if (up !== null && Math.random() < CFG.spillChance) {
+    const g = Object.entries(pickedItem('ideology').grow || {});
+    let r = Math.random(), s = +g[g.length - 1][0];
+    for (const [si, w] of g) { if (r < w) { s = +si; break; } r -= w; }
+    const a = Math.min(CFG.spillGain, CFG.growMax - train.stats[s]);
+    if (a > 0) {
       train.stats[s] += a; ups[s] = (ups[s] || 0) + a;
       if (s === up) msg = STAT_NAMES[s] + '이 크게 올랐습니다. (+' + ups[s] + ')';
       else msg += ' ' + STAT_NAMES[s] + '도 조금 올랐습니다. (+' + a + ')';
     }
-  });
+  }
   // 전법: 능력치와 따로, 탭과 상관없이 우연히 (최대 2개, 가득 차면 판정 안 함)
-  if (train.ops.length < CFG.maxOps && Math.random() < CFG.opEvent[train.n]) {
+  if (train.ops.length < CFG.maxOps && Math.random() < CFG.opEvent[Math.min(train.n, CFG.opEvent.length - 1)]) {
     const free = OPS.filter(o => !train.ops.some(h => h.id === o.id));   // 중복 획득 방지
     if (free.length) { got = free[Math.floor(Math.random() * free.length)]; train.ops.push(got); }
   }
-  const line = el('p', (cls || got) ? 'gain' : ''); line.append(el('small', null, opt.name));
-  if (!cls && !got) line.append(msg);
+  // 기연: 능력치·전법과 따로, 탭과 상관없이 우연히 장비를 발견 (지금 가진 장비와 같은 건 나오지 않음)
+  let foundItem = null;
+  if (Math.random() < CFG.itemEvent[Math.min(train.n, CFG.itemEvent.length - 1)]) {
+    const pool = ITEMS.filter(x => !train.item || x.id !== train.item.id);
+    foundItem = pool[Math.floor(Math.random() * pool.length)];
+  }
+  const line = el('p', (cls || got || foundItem) ? 'gain' : ''); line.append(el('small', null, opt.name));
+  if (!cls && !got && !foundItem) line.append(msg);
   if (cls) line.appendChild(el('strong', null, msg));
   if (got) {
     line.appendChild(el('span', 'evt', opt.evt));
     line.appendChild(el('strong', null, '전법 「' + got.name + '」' + josa(got.name, '을', '를').slice(got.name.length) + ' 얻었습니다.'));
   }
+  if (foundItem) line.appendChild(el('strong', null, '기연! 장비 「' + foundItem.name + '」' + josa(foundItem.name, '을', '를').slice(foundItem.name.length) + ' 발견했습니다.'));
   $('#trLog').appendChild(line);
   train.act++;
   document.querySelectorAll('#trAct .act').forEach(b => { b.disabled = true; });
@@ -1434,7 +1531,7 @@ function act(opt) {
     const delay = up !== null ? 900 : 0;            // 능력치 상승 연출이 끝난 뒤에 보여줌
     setTimeout(() => {
       const t = el('div', 'op-toast'); t.setAttribute('role', 'status');
-      t.append(el('small', null, '전법 획득'), el('b', null, got.name), el('em', null, opt.evt), el('span', 'tip-eff', OP_TIP[got.id]));
+      t.append(el('small', null, '전법 획득'), el('b', null, got.name), el('em', null, opt.evt), el('span', 'tip-eff', OP_TIP[got.id]), el('span', 'tip-note', OP_NOTE));
       document.body.appendChild(t);
       setTimeout(() => t.remove(), 1850);
       setTimeout(() => renderOps(got), 500);
@@ -1442,7 +1539,38 @@ function act(opt) {
     wait = delay + 1900;
   } else renderOps(got);
   const done = train.act >= CFG.actionsPerSession;
-  setTimeout(() => { train.busy = false; done ? endSession() : renderSession(); }, reduce ? 0 : wait);
+  const proceed = (m) => {
+    if (m) { const l = el('p', 'gain'); l.appendChild(el('strong', null, m)); $('#trLog').appendChild(l); }
+    train.busy = false; done ? endSession() : renderSession();
+  };
+  setTimeout(() => { if (foundItem) offerItem(foundItem, '기연', proceed); else proceed(); }, reduce ? 0 : wait);
+}
+
+// 장비를 얻었을 때 뜨는 팝업 (기연·우승 보상 공통). 이미 장비가 있으면 새 장비와 지금 장비의 효과를 둘 다 보여 주고 교체할지 고름
+function offerItem(it, tag, onDone) {
+  closeTip();
+  const prev = train.item;
+  const back = el('div', 'modal-back'); back.setAttribute('role', 'dialog'); back.setAttribute('aria-modal', 'true'); back.setAttribute('aria-label', tag + ' 장비');
+  const card = el('div', 'tr-card item-reward modal-card');
+  card.append(el('small', 'tag', tag), el('h2', null, it.name), el('p', null, it.desc), el('p', 'eff', '효과: ' + it.effect));
+  const row = el('div', 'swap-btns');
+  const finish = (msg) => { back.remove(); renderItem(); if (onDone) onDone(msg); };
+  const josaOf = (w, a, b) => '「' + w + '」' + josa(w, a, b).slice(w.length);
+  if (!prev) {
+    const ok = el('button', 'btn primary', '장비를 받는다'); ok.type = 'button';
+    ok.addEventListener('click', () => { train.item = it; finish(josaOf(it.name, '을', '를') + ' 장비로 얻었습니다.'); });
+    row.append(ok); card.append(row);
+  } else {
+    const cur = el('div', 'cur-item');
+    cur.append(el('small', null, '지금 장비'), el('b', null, prev.name), el('span', null, prev.effect));
+    const yes = el('button', 'btn primary', '교체한다'); yes.type = 'button';
+    yes.addEventListener('click', () => { train.item = it; finish(josaOf(it.name, '으로', '로') + ' 교체했습니다.'); });
+    const no = el('button', 'btn', '유지한다'); no.type = 'button';
+    no.addEventListener('click', () => finish('기존 장비 ' + josaOf(prev.name, '을', '를') + ' 그대로 쓰고, 새 장비는 사라집니다.'));
+    row.append(yes, no); card.append(cur, row);
+  }
+  back.appendChild(card); document.body.appendChild(back);
+  const f = card.querySelector('button'); if (f) f.focus();
 }
 
 function endSession() {
@@ -1453,6 +1581,7 @@ function endSession() {
   const b = el('button', 'btn primary', goTournament ? '일기토 대회 ' + t + '회차로' : '다음 육성으로'); b.type = 'button';
   b.addEventListener('click', () => { snap(); goTournament ? tournament(t) : nextSession(); });
   nx.appendChild(b);
+  if (train.n >= BASE_SESSIONS) nx.appendChild(quitButton());
 }
 function nextSession() { train.n++; train.act = 0; renderSession(); window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); }
 
@@ -1477,7 +1606,7 @@ function josa(word, a, b) {
 const OP_NAME = Object.fromEntries(OPS.map(o => [o.id, o.name]));
 const TRAIT_LINE = { charge: '돌격!', kiai: '기합을 넣는다!', assault: '맹공을 퍼붓는다!', watch: '상대를 날카롭게 주시한다.' };
 
-const ACTIVE_OPS = ['deathblow', 'lure', 'endure', 'emptycity', 'fire', 'chain', 'bitter', 'bluff', 'wall', 'steal'];   // 매 공격 판정으로 발동하는 전법 (카드마다 한 경기에 한 번)
+const ACTIVE_OPS = ['deathblow', 'lure', 'endure', 'emptycity', 'fire', 'chain', 'bitter', 'bluff', 'wall', 'steal', 'rush', 'stone', 'peerless', 'gamble'];   // 매 공격 판정으로 발동하는 전법 (카드마다 한 경기에 한 번)
 const SOLO_OPS = ['counter', 'resolve'];   // 2개 보유 시 발동 확률 감소의 개수 계산과 적용에서 빼는 전법
 function duel(F, seed, wantLog) {
   const B = BATTLE, rng = makeRng(seed);
@@ -1486,7 +1615,7 @@ function duel(F, seed, wantLog) {
   const hp = maxHp.slice(), buf = [{}, {}], endure = [0, 0];
   const usedOp = [{}, {}];                                                // 전법 카드마다 한 경기에 한 번씩 발동
   const told = [{}, {}];                                                  // 발동 순간이 없는 개성의 말풍선은 경기당 한 번만
-  const skip = [0, 0], chain = [0, 0], burn = [0, 0], rage = [0, 0], bluff = [0, 0], wall = [0, 0], flee = [0, 0], steal = [0, 0];
+  const rush = [0, 0], rushN = [0, 0], seal = [0, 0], sure = [0, 0], skip = [0, 0], chain = [0, 0], burn = [0, 0], rage = [0, 0], bluff = [0, 0], wall = [0, 0], flee = [0, 0], steal = [0, 0];
   const ev = F.map((f, i) => clamp(B.evade + (f.stats[2] - 50) * B.intCoef + (I[i].ev || 0), B.evadeMin, B.evadeMax));
   const cr = F.map((f, i) => clamp(B.crit + (f.stats[2] - 50) * B.intCoef + (I[i].cr || 0), B.critMin, B.critMax));
   const tp = F.map(f => B.traitBase + (f.stats[0] + f.stats[2]) * B.traitCoef);
@@ -1519,6 +1648,11 @@ function duel(F, seed, wantLog) {
     if (me === 'cunning' && pct(i) >= 50) { dm *= 1.05; cunning = true; }
     if ((buf[i].kiai || 0) > t) dm *= 1.05;
     if ((buf[i].assault || 0) > t) { dm *= 1.05; crit *= 1.5; }
+    if (rush[i] > t) dm *= 1 + B.rushStep * rushN[i];                              // 만인지적: 쌓인 공격력
+    if (seal[i] > t) crit = 0;                                                     // 석병팔진: 치명타 봉인
+    if (seal[j] > t) crit *= B.sealSelf;                                           // 석병팔진: 진 안에서는 내 치명타가 잘 터짐
+    const surecrit = sure[i] > 0;
+    if (surecrit) crit = 1;                                                        // 천하무쌍: 반드시 치명타
     let cdef = B.critDef + (I[j].cd || 0), taken = I[j].taken || 1, prudent = false;
     if (op === 'prudent' && pct(j) <= 80) { cdef *= 3; prudent = true; }
     if (op === 'iki' && pct(j) <= 50) taken /= 1.05;
@@ -1532,6 +1666,8 @@ function duel(F, seed, wantLog) {
     if (bluff[i] > t) d *= B.bluffMult;
     if (wall[j] > t) d *= B.wallMult;
     if (flee[j] > t) d *= B.fleeMult;
+    if (surecrit) { sure[i]--; cdef = 0; }                                         // 맞았을 때만 소모, 치명타 방어 무시
+    if (rush[i] > t && rushN[i] < B.rushMax) rushN[i]++;                           // 이 공격이 맞았으니 다음부터 더 쌓임
     if (rng() < Math.min(1, crit)) {
       if (rng() >= Math.min(1, cdef)) { d *= (hi ? B.critMultHi : B.critMult) + (I[i].cm || 0); type = hi ? 'hicrit' : 'crit'; }
       else type = 'block';
@@ -1573,6 +1709,10 @@ function duel(F, seed, wantLog) {
         if (pct(i) <= B.fleeHp && rng() < condP(i, 'flee', B.condRate)) { usedOp[i][o] = true; flee[i] = t + B.fleeSec; L(t, i, '[전법 주위상계] ' + N(i) + ', 한 발 물러서 위기를 넘긴다 — ' + B.fleeSec + '초간 받는 피해가 줄어든다', true, OS(o)); }
         continue;
       }
+      if (o === 'heal') {
+        if (pct(i) <= B.healHp && hp[i] < maxHp[i] && rng() < condP(i, 'heal', B.condRate)) { usedOp[i][o] = true; const h0 = hp[i]; hp[i] = Math.min(maxHp[i], hp[i] + B.healAmt); const hn = Math.round(hp[i] - h0); L(t, i, '[전법 태평요술] ' + N(i) + ', 신묘한 술법으로 체력 ' + hn + ' 회복', true, { ...OS(o), fx: [{ to: i, kind: 'heal', n: hn }] }); }
+        continue;
+      }
       if (o === 'pursuit') {
         if (pct(j) <= B.pursuitHp && rng() < condP(i, 'pursuit', B.condRate)) { usedOp[i][o] = true; hp[j] -= B.pursuitDmg; L(t, i, '[전법 추격] ' + N(i) + ', 쓰러져 가는 ' + N(j) + '의 뒤를 쫓는다 — ' + B.pursuitDmg + ' 피해', true, { ...OS(o), fx: [{ to: j, kind: 'dmg', n: B.pursuitDmg }] }); }
         continue;
@@ -1594,6 +1734,15 @@ function duel(F, seed, wantLog) {
       else if (o === 'bitter') { const b0 = hp[i]; hp[i] = Math.max(1, hp[i] - B.bitterCost); rage[i] = t + B.bitterSec; L(t, i, '[전법 고육지책] ' + N(i) + ', 제 몸을 베어 ' + B.bitterCost + '을 잃고 기세가 오른다!', true, { ...OS(o), fx: [{ to: i, kind: 'dmg', n: Math.round(b0 - hp[i]) }] }); }
       else if (o === 'bluff') { bluff[j] = t + B.bluffSec; L(t, i, '[전법 허장성세] ' + N(i) + ', 허세로 기를 꺾는다 — ' + N(j) + '의 공격이 둔해진다', true, OS(o)); }
       else if (o === 'wall') { wall[i] = t + B.wallSec; L(t, i, '[전법 견벽불출] ' + N(i) + ', 성벽을 굳게 지킨다 — ' + B.wallSec + '초간 받는 피해가 줄어든다', true, OS(o)); }
+      else if (o === 'rush') { rush[i] = t + B.rushSec; rushN[i] = 0; L(t, i, '[전법 만인지적] ' + N(i) + ', 만 명을 상대하듯 기세를 올린다 — 공격을 이어갈수록 강해진다', true, OS(o)); }
+      else if (o === 'stone') { seal[j] = t + B.sealSec; L(t, i, '[전법 석병팔진] ' + N(i) + ', 석병팔진을 펼쳤다 — ' + N(j) + ', 급소를 노리지 못한다', true, OS(o)); }
+      else if (o === 'peerless') { sure[i] = B.sureN; L(t, i, '[전법 천하무쌍] ' + N(i) + ', 천하무쌍의 기세로 다음 일격을 벼린다', true, OS(o)); }
+      else if (o === 'gamble') {
+        if (rng() < B.gambleRate) {
+          if (endure[j] > 0) { hp[j] -= 1; endure[j]--; L(t, i, '[전법 인중여포] ' + N(i) + '의 승부수! — ' + N(j) + ', 인내로 버텼다', true, { ...OS(o), fx: [{ to: j, kind: 'dmg', n: 1 }] }); }
+          else { const b0 = hp[j]; hp[j] *= 1 - B.gambleFrac; const dn = Math.round(b0 - hp[j]); L(t, i, '[전법 인중여포] ' + N(i) + '의 승부수가 통했다! ' + N(j) + '에게 ' + dn + ' 피해', true, { ...OS(o), fx: [{ to: j, kind: 'dmg', n: dn }] }); }
+        } else { const b0 = hp[i]; hp[i] = Math.max(1, hp[i] - B.gambleCost); const dn = Math.round(b0 - hp[i]); L(t, i, '[전법 인중여포] ' + N(i) + '의 승부수가 빗나갔다 — 체력 ' + dn + ' 손실', true, { ...OS(o), fx: [{ to: i, kind: 'dmg', n: dn }] }); }
+      }
       else if (o === 'steal') { steal[i] = B.stealN; L(t, i, '[전법 초선차전] ' + N(i) + ', 날아드는 공격을 거두어 힘으로 삼는다', true, OS(o)); }
     }
     return res;
@@ -1714,7 +1863,7 @@ function tournament(round) {
   tour.round = round; tour.stage = 0; tour.place = '';
   tour.alive = shuffle([playerFighter(), ...makeNpcs(round)]);
   $('#trainView').hidden = true; $('#tourView').hidden = false;
-  $('#tvTitle').textContent = '일기토 대회 ' + round + '회차';
+  $('#tvTitle').textContent = '일기토 대회 ' + round + '회차' + (round >= CFG.extraFrom ? ' (랭킹 미반영)' : '');
   showStage();
 }
 function pairs() { const p = []; for (let i = 0; i < tour.alive.length; i += 2) p.push([tour.alive[i], tour.alive[i + 1]]); return p; }
@@ -1948,52 +2097,64 @@ function endTournament(lastResults) {
   const main = $('#tvMain'); main.textContent = '';
   $('#tvLede').textContent = '대회 종료';
   const box = el('div', 'bt-result ' + (tour.place === '우승' ? 'win' : ''));
-  box.append(el('h2', null, tour.place === '우승' ? '우승!' : tour.place),
-             el('p', null, tour.place === '우승' ? '일기토 대회 ' + tour.round + '회차의 정상에 섰습니다.' : '이번 대회 우승: ' + champ.name));
+  const grand = tour.place === '우승' && tour.round >= CFG.extraMax;                  // 마지막 회차 우승: 축하 화면
+  if (grand) box.classList.add('grand');
+  box.append(el('h2', null, grand ? '천하제일의 무장!' : tour.place === '우승' ? '우승!' : tour.place),
+             el('p', null, grand ? CFG.extraMax + '회의 일기토 대회를 모두 제패했습니다. 그대의 이름이 천하에 울려 퍼집니다!'
+               : tour.place === '우승' ? '일기토 대회 ' + tour.round + '회차의 정상에 섰습니다.' : '이번 대회 우승: ' + champ.name));
   main.appendChild(box);
-  const gate = { b: null, waiting: false };                                          // 장비 교체를 고르기 전에는 '다음'으로 못 넘어감
-  if (tour.place === '우승' && CFG.itemRounds.includes(tour.round)) {                // 우승 보상: 장비를 무작위로 받음 (1개만 보유)
+  const gate = { b: null, waiting: false };                                          // 장비를 고르기 전에는 '다음'으로 못 넘어감
+  let reward = null;
+  if (tour.place === '우승' && CFG.itemRounds.includes(tour.round)) {                // 우승 보상: 장비를 무작위로 받음 (1개만 보유, 팝업으로 고름)
     const prev = train.item, pool = ITEMS.filter(x => !prev || x.id !== prev.id);
-    const it = pool[Math.floor(Math.random() * pool.length)];
-    const card = el('div', 'tr-card item-reward');
-    card.append(el('small', 'tag', '우승 보상'), el('h2', null, it.name), el('p', null, it.desc), el('p', 'eff', '효과: ' + it.effect));
-    if (!prev) { train.item = it; }
-    else {                                                                          // 이미 장비가 있으면 교체할지 고름
-      gate.waiting = true;
-      const cur = el('div', 'cur-item');
-      cur.append(el('small', null, '지금 장비'), el('b', null, prev.name), el('span', null, prev.effect));
-      const row = el('div', 'swap-btns');
-      const done = (msg) => { row.remove(); card.appendChild(el('p', 'swap', msg)); gate.waiting = false; if (gate.b) gate.b.disabled = false; renderItem(); };
-      const yes = el('button', 'btn primary', '교체한다'); yes.type = 'button';
-      yes.addEventListener('click', () => { train.item = it; done('「' + it.name + '」' + josa(it.name, '으로', '로').slice(it.name.length) + ' 교체했습니다.'); });
-      const no = el('button', 'btn', '유지한다'); no.type = 'button';
-      no.addEventListener('click', () => done('기존 장비 「' + prev.name + '」' + josa(prev.name, '을', '를').slice(prev.name.length) + ' 그대로 쓰고, 새 장비는 사라집니다.'));
-      row.append(yes, no); card.append(cur, row);
-    }
-    main.appendChild(card);
+    reward = pool[Math.floor(Math.random() * pool.length)]; gate.waiting = true;
   }
-  const last = tour.round === CFG.schedule[CFG.schedule.length - 1];
-  const b = el('button', 'btn primary', last || (TOUR.endOnLoss && tour.place !== '우승') ? '결과 보기' : '다음 육성으로'); b.type = 'button';
+  const extraRound = tour.round >= CFG.extraFrom, lost = tour.place !== '우승';
+  const ends = (extraRound && lost) || tour.round >= CFG.extraMax || (TOUR.endOnLoss && lost);   // 도전 회차는 지면 거기서 끝
+  const b = el('button', 'btn primary', ends ? '결과 보기' : tour.round === BASE_ROUNDS ? '다음' : '다음 육성으로'); b.type = 'button';
   b.addEventListener('click', () => {
     snap();
     $('#tourView').hidden = true; $('#trainView').hidden = false;
-    if (TOUR.endOnLoss && tour.place !== '우승') return finishTrain();
+    if ((TOUR.endOnLoss || extraRound) && lost) return finishTrain();
     afterTournament();
   });
   gate.b = b; b.disabled = gate.waiting;
   const wrap = el('div', 'make'); wrap.appendChild(b); main.appendChild(wrap);
+  if (reward) offerItem(reward, '우승 보상', msg => {
+    box.appendChild(el('p', 'swap', msg)); gate.waiting = false; if (gate.b) gate.b.disabled = false;
+  });
   window.scrollTo({ top: 0, behavior: 'auto' });
 }
 function afterTournament() {
-  if (train.n >= CFG.schedule.length - 1) return finishTrain();
-  nextSession();
+  if (train.n < CFG.schedule.length - 1) return nextSession();            // 기본 일정 중간 (같은 대회 전 육성이 남음)
+  const r = tour.round;
+  if (r === BASE_ROUNDS) return askExtra();                               // 3회차를 마치면 더 도전할지 물음
+  if (r < CFG.extraMax) return startExtra(r + 1);                         // 도전 회차에서 이기면 자동으로 다음 회차
+  finishTrain();
+}
+function startExtra(next) { CFG.schedule.push(next); nextSession(); }
+function askExtra() {
+  const back = el('div', 'modal-back'); back.setAttribute('role', 'dialog'); back.setAttribute('aria-modal', 'true'); back.setAttribute('aria-label', '도전 여부');
+  const card = el('div', 'tr-card item-reward modal-card');
+  card.append(el('small', 'tag', '도전'), el('h2', null, CFG.extraFrom + '회차에 도전하시겠습니까?'),
+    el('p', 'warn', '※ 랭킹은 일기토 대회 ' + BASE_ROUNDS + '회차까지의 기록만 산정됩니다. ' + CFG.extraFrom + '회차부터는 랭킹에 반영되지 않습니다.'),
+    el('p', null, '도전하면 회차마다 육성을 1번(행동 3번) 더 할 수 있고, 상대는 점점 강해집니다. 지면 그 자리에서 도전이 끝나고 도달한 회차가 기록됩니다. 최대 ' + CFG.extraMax + '회차까지 도전할 수 있습니다.'));
+  const row = el('div', 'swap-btns');
+  const yes = el('button', 'btn primary', '도전한다'); yes.type = 'button';
+  yes.addEventListener('click', () => { back.remove(); startExtra(CFG.extraFrom); });
+  const no = el('button', 'btn', '그만두고 결과 보기'); no.type = 'button';
+  no.addEventListener('click', () => { back.remove(); finishTrain(); });
+  row.append(yes, no); card.appendChild(row); back.appendChild(card); document.body.appendChild(back); yes.focus();
 }
 
 function finishTrain() {
   hist.done = true;
-  $('#trLede').textContent = '모든 일정을 마쳤습니다';
+  const played = train.results.map(r => r.round), extended = played.some(r => r >= CFG.extraFrom);
+  const cleared = train.results.some(r => r.round >= CFG.extraMax && r.place === '우승');
+  $('#trLede').textContent = extended ? '도전을 마쳤습니다' : '모든 일정을 마쳤습니다';
   $('#trNext').textContent = ''; $('#trLog').textContent = '';
   const box = $('#trAct'); box.textContent = '';
+  if (cleared) { const bn = el('div', 'champ-banner'); bn.append(el('b', null, '천하제일의 무장'), el('span', null, CFG.extraMax + '회의 일기토 대회를 모두 제패했습니다!')); box.appendChild(bn); }
   const card = el('div', 'tr-card'); card.appendChild(el('h2', null, '최종 결과'));
   const dl = el('dl');
   STAT_NAMES.forEach((n, i) => {
@@ -2002,8 +2163,10 @@ function finishTrain() {
   });
   dl.append(el('dt', null, '전법'), el('dd', null, train.ops.length ? train.ops.map(o => o.name).join(', ') : '없음'));
   dl.append(el('dt', null, '장비'), el('dd', null, train.item ? train.item.name : '없음'));
-  train.results.forEach(r => dl.append(el('dt', null, '대회 ' + r.round), el('dd', null, r.place)));
+  train.results.forEach(r => dl.append(el('dt', null, '대회 ' + r.round), el('dd', null, r.place + (r.round >= CFG.extraFrom ? ' (랭킹 미반영)' : ''))));
+  if (extended) dl.append(el('dt', null, '도달 회차'), el('dd', null, Math.max(...played) + '회차' + (cleared ? ' (전승)' : '')));
   card.appendChild(dl);
+  if (extended) card.appendChild(el('p', 'rank-note', '※ 랭킹은 일기토 대회 ' + BASE_ROUNDS + '회차까지의 기록만 반영됩니다.'));
   const b = el('button', 'btn', '처음부터 다시'); b.type = 'button'; b.style.marginTop = '18px';
   b.addEventListener('click', () => { $('#trainView').hidden = true; $('#tourView').hidden = true; $('#createView').hidden = false; resetAll(); resetHistory(); });
   card.appendChild(b); box.appendChild(card);
