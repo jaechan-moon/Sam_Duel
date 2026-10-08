@@ -679,7 +679,7 @@ const CFG = {
   choiceCount: 12,             // 한 번에 보여줄 선택지 수 (12 = 전부)
   gain: 2,                     // 능력치가 오를 때 상승량
   growMax: 100,                // 육성 중 능력치 1개 최대값
-  bonus: { big: 0.10, small: 0.05 },  // 사상 보정(확률 더하기): 상승 / 소폭 상승
+  spillGain: 1,                // 사상 덤: 어떤 탭이든 육성에 성공하면, 사상의 능력치가 확률(TABLES 사상의 grow)로 이만큼 더 오름
   // 전법은 탭과 상관없이, 행동이 끝날 때마다 우연히 얻음 (최대 maxOps개). 육성 1~5회차별 확률
   maxOps: 2,                   // 신무장이 가질 수 있는 전법 수
   maxItems: 1,                 // 신무장이 가질 수 있는 장비 수 (새로 받으면 교체)
@@ -810,7 +810,8 @@ const NPC_TABLE = [
 // 개성·사상: 선택 항목 / 전법: 선택 불가, 육성 중 무작위 획득
 // - 개성: 효과가 곧 설명이라 화면에 그대로 보여줍니다 (전투 시 영향)
 // - 사상: desc만 화면에 보이고 effect/grow는 내부 값입니다 (플레이어에게 비공개)
-//   grow: 능력치 번호(0통솔 1무력 2지력) → 'big'(상승) / 'small'(소폭 상승), 육성 때 오를 확률 보정
+//   grow: 능력치 번호(0통솔 1무력 2지력) → 덤 확률. 어떤 탭이든 육성에 성공하면 이 확률로 그 능력치가 CFG.spillGain만큼 더 오름
+//         (모든 사상의 덤 총량을 비슷하게: 한 능력치 20% / 두 능력치 각 10% / 세 능력치 각 7%)
 const TABLES = {
   trait: { label: '개성', items: [
     { id: 'valor',    name: '용맹', desc: '체력이 80% 이상일 때 치명타 확률 3배 상승' },
@@ -824,26 +825,26 @@ const TABLES = {
   ]},
   ideology: { label: '사상', items: [
     { id: 'hegemon',  name: '패도', desc: '오직 힘만이 모든 것을 좌우한다고 생각하며 살아감',
-      effect: '육성 시 무력 상승 확률이 상승함',
-      grow: { 1: 'big' } },
+      effect: '육성에 성공하면 20% 확률로 무력이 덤으로 +1',
+      grow: { 1: 0.20 } },
     { id: 'confucian',name: '유가', desc: '예와 덕으로 일생을 살아감',
-      effect: '육성 시 통솔과 지력이 상승할 확률이 소폭 상승함',
-      grow: { 0: 'small', 2: 'small' } },
+      effect: '육성에 성공하면 통솔·지력이 각각 10% 확률로 덤으로 +1',
+      grow: { 0: 0.10, 2: 0.10 } },
     { id: 'daoist',   name: '도가', desc: '흐름에 맡기고 거스르지 않으며 살아감',
-      effect: '육성 시 통솔 상승 확률이 상승함',
-      grow: { 0: 'big' } },
+      effect: '육성에 성공하면 20% 확률로 통솔이 덤으로 +1',
+      grow: { 0: 0.20 } },
     { id: 'legalist', name: '법가', desc: '법을 지키며 공명정대하게 살아감',
-      effect: '육성 시 지력 상승 확률이 상승함',
-      grow: { 2: 'big' } },
+      effect: '육성에 성공하면 20% 확률로 지력이 덤으로 +1',
+      grow: { 2: 0.20 } },
     { id: 'schemer',  name: '권모', desc: '승리를 위해서라면 그 어떤 과정도 신경쓰지 않음',
-      effect: '육성 시 무력과 통솔이 상승할 확률이 소폭 상승함',
-      grow: { 0: 'small', 1: 'small' } },
+      effect: '육성에 성공하면 무력·통솔이 각각 10% 확률로 덤으로 +1',
+      grow: { 0: 0.10, 1: 0.10 } },
     { id: 'utilit',   name: '공리', desc: '대를 위해 소는 희생할 수 있으며 큰 판세를 파악함',
-      effect: '육성 시 무력과 지력이 상승할 확률이 소폭 상승함',
-      grow: { 1: 'small', 2: 'small' } },
+      effect: '육성에 성공하면 무력·지력이 각각 10% 확률로 덤으로 +1',
+      grow: { 1: 0.10, 2: 0.10 } },
     { id: 'righteous',name: '정도', desc: '정도의 길을 걸으며 어느 상황에나 협을 행함',
-      effect: '육성 시 통솔, 무력, 지력이 상승할 확률이 소폭 상승함',
-      grow: { 0: 'small', 1: 'small', 2: 'small' } }
+      effect: '육성에 성공하면 통솔·무력·지력이 각각 7% 확률로 덤으로 +1',
+      grow: { 0: 0.07, 1: 0.07, 2: 0.07 } }
   ]}
 };
 
@@ -1370,13 +1371,11 @@ function resolve(opt) {
     for (const [si, w] of Object.entries(opt.to)) { if (r < w) return { type: 'stat', stat: +si }; r -= w; }
     const k = Object.keys(opt.to); return { type: 'stat', stat: +k[k.length - 1] };
   }
-  const bonus = pickedItem('ideology').grow || {};
   const sb = CFG.growBonus[train.n] || { stat: 0 };      // 이번 육성 회차 보정
   const gain = opt.gain > 0 ? opt.gain + sb.stat : 0;
   const outs = [];
   Object.entries(opt.to).forEach(([si, w]) => {
-    const st = +si, lv = bonus[st];
-    outs.push({ type: 'stat', stat: st, p: gain * w + (lv ? CFG.bonus[lv] : 0) });
+    outs.push({ type: 'stat', stat: +si, p: gain * w });
   });
   let r = Math.random();
   for (const o of outs) { if (r < o.p) return o; r -= o.p; }
@@ -1393,6 +1392,16 @@ function act(opt) {
     const cur = train.stats[out.stat], add = Math.min(CFG.gain, CFG.growMax - cur);
     if (add > 0) { train.stats[out.stat] = cur + add; up = out.stat; addN = add; train.hit++; msg = STAT_NAMES[out.stat] + '이 올랐습니다. (+' + add + ')'; cls = 'gain'; }
   }
+  // 사상 덤: 육성에 성공하면 탭과 상관없이, 사상의 능력치가 확률로 더 오름 (사상 효과는 플레이어에게 비공개)
+  const ups = up !== null ? { [up]: addN } : {};
+  if (up !== null) Object.entries(pickedItem('ideology').grow || {}).forEach(([si, p]) => {
+    const s = +si, a = Math.min(CFG.spillGain, CFG.growMax - train.stats[s]);
+    if (a > 0 && Math.random() < p) {
+      train.stats[s] += a; ups[s] = (ups[s] || 0) + a;
+      if (s === up) msg = STAT_NAMES[s] + '이 크게 올랐습니다. (+' + ups[s] + ')';
+      else msg += ' ' + STAT_NAMES[s] + '도 조금 올랐습니다. (+' + a + ')';
+    }
+  });
   // 전법: 능력치와 따로, 탭과 상관없이 우연히 (최대 2개, 가득 차면 판정 안 함)
   if (train.ops.length < CFG.maxOps && Math.random() < CFG.opEvent[train.n]) {
     const free = OPS.filter(o => !train.ops.some(h => h.id === o.id));   // 중복 획득 방지
@@ -1412,12 +1421,12 @@ function act(opt) {
   if (up !== null && !reduce) {
     // +2가 떠올랐다 사라지는 사이에 능력치 숫자가 올라감
     renderTrainStats(null, prev);
-    const chip = $('#trStats').children[up];
-    chip.appendChild(el('span', 'gainf', '+' + addN));
-    setTimeout(() => {
-      const st = chip.querySelector('strong'); st.textContent = train.stats[up];
+    const keys = Object.keys(ups).map(Number);
+    keys.forEach(k => $('#trStats').children[k].appendChild(el('span', 'gainf', '+' + ups[k])));
+    setTimeout(() => keys.forEach(k => {
+      const chip = $('#trStats').children[k], st = chip.querySelector('strong'); st.textContent = train.stats[k];
       chip.classList.remove('up'); void chip.offsetWidth; chip.classList.add('up');
-    }, 650);
+    }), 650);
     setTimeout(() => renderTrainStats(), 1350);
     wait = 1400;
   } else renderTrainStats(up);
