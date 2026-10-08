@@ -220,7 +220,7 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 .tr-card dd { margin: 0; font-variant-numeric: tabular-nums; }
 
 /* --- 일기토 --- */
-.mcard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.mcard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 0 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .fz { text-align: center; min-width: 0; }
 .fz .face { width: min(128px, 100%); aspect-ratio: 1; margin: 0 auto 8px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: var(--node); border: 2px solid var(--line); font-weight: 900; font-size: 52px; }
 .fz .face img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 8%; }
@@ -289,6 +289,12 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 
 /* --- 연출: 초상화 칸, 대미지 숫자, 말풍선, 전법 칩, 안내창 --- */
 .mcard { padding-top: 66px; }
+.fz .ph { height: 0; margin: 0; padding: 0; }
+@supports (grid-template-rows: subgrid) {                                     /* 두 장수의 줄 높이를 공유해서 위아래를 맞춤 */
+  .mcard { grid-template-rows: repeat(9, auto); }
+  .mcard .fz { display: grid; grid-row: 1 / span 9; grid-template-rows: subgrid; align-content: start; }
+  .mcard .vs { grid-row: 1 / span 9; align-self: center; }
+}
 .fz { position: relative; }
 .facebox { position: relative; width: min(128px, 100%); margin: 0 auto 8px; }
 .facebox .face { width: 100%; margin: 0; }
@@ -682,11 +688,13 @@ const CFG = {
   // 육성 회차별 능력치 상승 확률 보정 (%p를 더함). 4·5회차는 2·3회차 보정 위에 더 얹은 누적값
   growBonus: [
     { stat: 0    },   // 육성 1회
-    { stat: 0.05 },   // 육성 2회
-    { stat: 0.05 },   // 육성 3회
-    { stat: 0.10 },   // 육성 4회
-    { stat: 0.10 }    // 육성 5회
-  ]
+    { stat: 0.08 },   // 육성 2회
+    { stat: 0.08 },   // 육성 3회
+    { stat: 0.11 },   // 육성 4회
+    { stat: 0.11 }    // 육성 5회
+  ],
+  // 육성 회차별 보장: true면 그 회차 3번 행동 중 능력치가 한 번도 안 올랐을 때 마지막 행동은 반드시 오름 (고른 탭의 능력치 비율대로)
+  guarantee: [true, false, false, false, false]
 };
 
 /* ============================================================
@@ -738,64 +746,65 @@ const TOUR = {
   rounds: ['32강', '16강', '8강', '4강', '결승'],
   statBonus: [[2, 0], [5, 3], [7.5, 7.5]],   // 대회 회차별 상대 능력치 +보정 [일반, S등급] (최대 100). 소수는 두 정수를 무작위로 섞어 평균을 맞춤
   opChance: [0, 0.5, 1],       // 회차별 상대가 표의 전법을 사용할 확률
+  secondOp: [0, 0, 1],         // 회차별 상대가 두 번째 전법(표의 전법과 다른 무작위 1개)을 가질 확률 (표의 전법이 있을 때만)
   resolveSkipsNext: true,      // 결사로 이기면 다음 경기 부전패
   endOnLoss: false             // true면 탈락 시 게임 종료
 };
-// 상대 장수 표 (NPC_Table.xlsx 기준): 이름 / 통솔·무력·지력 / 개성 / 전법. 대회마다 이 중 31명을 무작위로 뽑습니다
+// 상대 장수 표 (NPC_Table.xlsx 기준): 이름 / 자(없으면 빈칸) / 통솔·무력·지력 / 개성 / 전법. 대회마다 이 중 31명을 무작위로 뽑습니다
 const NPC_TABLE = [
-  { name: '관우', stats: [61, 63, 42], trait: 'valor', op: 'deathblow', tier: 'S' },
-  { name: '장비', stats: [64, 79, 20], trait: 'charge', op: 'bluff', tier: 'S' },
-  { name: '유비', stats: [44, 43, 44], trait: 'prudent', op: 'flee', tier: 'C' },
-  { name: '조운', stats: [60, 63, 43], trait: 'assault', op: 'counter', tier: 'S' },
-  { name: '마초', stats: [66, 76, 20], trait: 'assault', op: 'pursuit', tier: 'S' },
-  { name: '마대', stats: [55, 66, 20], trait: 'cunning', op: 'deathblow', tier: 'B' },
-  { name: '위연', stats: [60, 63, 32], trait: 'iki', op: 'resolve', tier: 'A' },
-  { name: '황충', stats: [55, 70, 29], trait: 'kiai', op: 'deathblow', tier: 'A' },
-  { name: '하후연', stats: [62, 66, 24], trait: 'assault', op: 'first', tier: 'A' },
-  { name: '하후돈', stats: [62, 64, 27], trait: 'iki', op: 'endure', tier: 'A' },
-  { name: '악진', stats: [58, 64, 20], trait: 'charge', op: 'first', tier: 'B' },
-  { name: '조인', stats: [66, 61, 24], trait: 'watch', op: 'wall', tier: 'A' },
-  { name: '서황', stats: [60, 62, 34], trait: 'prudent', op: 'pursuit', tier: 'A' },
-  { name: '장합', stats: [58, 59, 37], trait: 'cunning', op: 'lure', tier: 'A' },
-  { name: '장료', stats: [62, 61, 45], trait: 'charge', op: 'pursuit', tier: 'S' },
-  { name: '여포', stats: [61, 83, 20], trait: 'valor', op: 'deathblow', tier: 'S' },
-  { name: '위속', stats: [47, 55, 20], trait: 'cunning', op: 'flee', tier: 'D' },
-  { name: '전위', stats: [56, 77, 20], trait: 'iki', op: 'resolve', tier: 'A' },
-  { name: '허저', stats: [56, 90, 20], trait: 'kiai', op: 'bitter', tier: 'S' },
-  { name: '우금', stats: [54, 44, 34], trait: 'watch', op: 'endure', tier: 'C' },
-  { name: '감녕', stats: [55, 69, 31], trait: 'charge', op: 'first', tier: 'A' },
-  { name: '주유', stats: [57, 33, 55], trait: 'cunning', op: 'fire', tier: 'B' },
-  { name: '여몽', stats: [49, 44, 47], trait: 'watch', op: 'emptycity', tier: 'B' },
-  { name: '태사자', stats: [57, 67, 31], trait: 'valor', op: 'first', tier: 'A' },
-  { name: '황개', stats: [55, 57, 31], trait: 'iki', op: 'bitter', tier: 'B' },
-  { name: '한당', stats: [57, 60, 26], trait: 'watch', op: 'wall', tier: 'B' },
-  { name: '정보', stats: [55, 49, 41], trait: 'prudent', op: 'steal', tier: 'B' },
-  { name: '주태', stats: [54, 65, 23], trait: 'iki', op: 'resolve', tier: 'B' },
-  { name: '정봉', stats: [54, 57, 31], trait: 'assault', op: 'lure', tier: 'B' },
-  { name: '육손', stats: [56, 30, 57], trait: 'prudent', op: 'fire', tier: 'B' },
-  { name: '능통', stats: [57, 67, 30], trait: 'kiai', op: 'counter', tier: 'A' },
-  { name: '손책', stats: [62, 67, 38], trait: 'valor', op: 'first', tier: 'S' },
-  { name: '손견', stats: [56, 59, 38], trait: 'kiai', op: 'counter', tier: 'A' },
-  { name: '손상향', stats: [40, 54, 37], trait: 'cunning', op: 'lure', tier: 'C' },
-  { name: '화웅', stats: [51, 69, 20], trait: 'valor', op: 'bluff', tier: 'B' },
-  { name: '방덕', stats: [58, 69, 27], trait: 'iki', op: 'resolve', tier: 'A' },
-  { name: '이전', stats: [49, 41, 41], trait: 'prudent', op: 'steal', tier: 'C' },
-  { name: '서성', stats: [54, 48, 42], trait: 'watch', op: 'wall', tier: 'B' },
-  { name: '강유', stats: [54, 48, 51], trait: 'cunning', op: 'chain', tier: 'A' },
-  { name: '주창', stats: [43, 77, 20], trait: 'iki', op: 'resolve', tier: 'B' },
-  { name: '맹획', stats: [55, 66, 20], trait: 'valor', op: 'flee', tier: 'B' },
-  { name: '축융', stats: [38, 74, 20], trait: 'assault', op: 'fire', tier: 'C' },
-  { name: '엄안', stats: [51, 55, 37], trait: 'watch', op: 'resolve', tier: 'B' },
-  { name: '안량', stats: [57, 75, 20], trait: 'assault', op: 'first', tier: 'A' },
-  { name: '문추', stats: [57, 73, 20], trait: 'charge', op: 'deathblow', tier: 'A' },
-  { name: '고순', stats: [61, 58, 23], trait: 'charge', op: 'first', tier: 'B' },
-  { name: '조홍', stats: [54, 56, 20], trait: 'watch', op: 'steal', tier: 'C' },
-  { name: '제갈량', stats: [70, 20, 80], trait: 'prudent', op: 'emptycity', tier: 'S' },
-  { name: '방통', stats: [33, 20, 84], trait: 'cunning', op: 'chain', tier: 'B' },
-  { name: '사마의', stats: [68, 33, 69], trait: 'cunning', op: 'wall', tier: 'S' },
-  { name: '곽가', stats: [26, 20, 78], trait: 'watch', op: 'first', tier: 'C' },
-  { name: '순욱', stats: [22, 20, 80], trait: 'prudent', op: 'endure', tier: 'C' },
-  { name: '순유', stats: [37, 20, 71], trait: 'cunning', op: 'chain', tier: 'C' }
+  { name: '관우', alias: '운장', stats: [61, 63, 42], trait: 'valor', op: 'deathblow', tier: 'S' },
+  { name: '장비', alias: '익덕', stats: [64, 79, 20], trait: 'charge', op: 'bluff', tier: 'S' },
+  { name: '유비', alias: '현덕', stats: [44, 43, 44], trait: 'prudent', op: 'flee', tier: 'C' },
+  { name: '조운', alias: '자룡', stats: [60, 63, 43], trait: 'assault', op: 'counter', tier: 'S' },
+  { name: '마초', alias: '맹기', stats: [66, 76, 20], trait: 'assault', op: 'pursuit', tier: 'S' },
+  { name: '마대', alias: '', stats: [55, 66, 20], trait: 'cunning', op: 'deathblow', tier: 'B' },
+  { name: '위연', alias: '문장', stats: [60, 63, 32], trait: 'iki', op: 'resolve', tier: 'A' },
+  { name: '황충', alias: '한승', stats: [55, 70, 29], trait: 'kiai', op: 'deathblow', tier: 'A' },
+  { name: '하후연', alias: '묘재', stats: [62, 66, 24], trait: 'assault', op: 'first', tier: 'A' },
+  { name: '하후돈', alias: '원양', stats: [62, 64, 27], trait: 'iki', op: 'endure', tier: 'A' },
+  { name: '악진', alias: '문겸', stats: [58, 64, 20], trait: 'charge', op: 'first', tier: 'B' },
+  { name: '조인', alias: '자효', stats: [66, 61, 24], trait: 'watch', op: 'wall', tier: 'A' },
+  { name: '서황', alias: '공명', stats: [60, 62, 34], trait: 'prudent', op: 'pursuit', tier: 'A' },
+  { name: '장합', alias: '준예', stats: [58, 59, 37], trait: 'cunning', op: 'lure', tier: 'A' },
+  { name: '장료', alias: '문원', stats: [62, 61, 45], trait: 'charge', op: 'pursuit', tier: 'S' },
+  { name: '여포', alias: '봉선', stats: [61, 83, 20], trait: 'valor', op: 'deathblow', tier: 'S' },
+  { name: '위속', alias: '', stats: [47, 55, 20], trait: 'cunning', op: 'flee', tier: 'D' },
+  { name: '전위', alias: '', stats: [56, 77, 20], trait: 'iki', op: 'resolve', tier: 'A' },
+  { name: '허저', alias: '중강', stats: [56, 90, 20], trait: 'kiai', op: 'bitter', tier: 'S' },
+  { name: '우금', alias: '문칙', stats: [54, 44, 34], trait: 'watch', op: 'endure', tier: 'C' },
+  { name: '감녕', alias: '흥패', stats: [55, 69, 31], trait: 'charge', op: 'first', tier: 'A' },
+  { name: '주유', alias: '공근', stats: [57, 33, 55], trait: 'cunning', op: 'fire', tier: 'B' },
+  { name: '여몽', alias: '자명', stats: [49, 44, 47], trait: 'watch', op: 'emptycity', tier: 'B' },
+  { name: '태사자', alias: '자의', stats: [57, 67, 31], trait: 'valor', op: 'first', tier: 'A' },
+  { name: '황개', alias: '공복', stats: [55, 57, 31], trait: 'iki', op: 'bitter', tier: 'B' },
+  { name: '한당', alias: '의공', stats: [57, 60, 26], trait: 'watch', op: 'wall', tier: 'B' },
+  { name: '정보', alias: '덕모', stats: [55, 49, 41], trait: 'prudent', op: 'steal', tier: 'B' },
+  { name: '주태', alias: '유평', stats: [54, 65, 23], trait: 'iki', op: 'resolve', tier: 'B' },
+  { name: '정봉', alias: '승연', stats: [54, 57, 31], trait: 'assault', op: 'lure', tier: 'B' },
+  { name: '육손', alias: '백언', stats: [56, 30, 57], trait: 'prudent', op: 'fire', tier: 'B' },
+  { name: '능통', alias: '공적', stats: [57, 67, 30], trait: 'kiai', op: 'counter', tier: 'A' },
+  { name: '손책', alias: '백부', stats: [62, 67, 38], trait: 'valor', op: 'first', tier: 'S' },
+  { name: '손견', alias: '문대', stats: [56, 59, 38], trait: 'kiai', op: 'counter', tier: 'A' },
+  { name: '손상향', alias: '', stats: [40, 54, 37], trait: 'cunning', op: 'lure', tier: 'C' },
+  { name: '화웅', alias: '', stats: [51, 69, 20], trait: 'valor', op: 'bluff', tier: 'B' },
+  { name: '방덕', alias: '영명', stats: [58, 69, 27], trait: 'iki', op: 'resolve', tier: 'A' },
+  { name: '이전', alias: '만성', stats: [49, 41, 41], trait: 'prudent', op: 'steal', tier: 'C' },
+  { name: '서성', alias: '문향', stats: [54, 48, 42], trait: 'watch', op: 'wall', tier: 'B' },
+  { name: '강유', alias: '백약', stats: [54, 48, 51], trait: 'cunning', op: 'chain', tier: 'A' },
+  { name: '주창', alias: '', stats: [43, 77, 20], trait: 'iki', op: 'resolve', tier: 'B' },
+  { name: '맹획', alias: '', stats: [55, 66, 20], trait: 'valor', op: 'flee', tier: 'B' },
+  { name: '축융', alias: '', stats: [38, 74, 20], trait: 'assault', op: 'fire', tier: 'C' },
+  { name: '엄안', alias: '', stats: [51, 55, 37], trait: 'watch', op: 'resolve', tier: 'B' },
+  { name: '안량', alias: '', stats: [57, 75, 20], trait: 'assault', op: 'first', tier: 'A' },
+  { name: '문추', alias: '', stats: [57, 73, 20], trait: 'charge', op: 'deathblow', tier: 'A' },
+  { name: '고순', alias: '', stats: [61, 58, 23], trait: 'charge', op: 'first', tier: 'B' },
+  { name: '조홍', alias: '자렴', stats: [54, 56, 20], trait: 'watch', op: 'steal', tier: 'C' },
+  { name: '제갈량', alias: '공명', stats: [70, 20, 80], trait: 'prudent', op: 'emptycity', tier: 'S' },
+  { name: '방통', alias: '사원', stats: [33, 20, 84], trait: 'cunning', op: 'chain', tier: 'B' },
+  { name: '사마의', alias: '중달', stats: [68, 33, 69], trait: 'cunning', op: 'wall', tier: 'S' },
+  { name: '곽가', alias: '봉효', stats: [26, 20, 78], trait: 'watch', op: 'first', tier: 'C' },
+  { name: '순욱', alias: '문약', stats: [22, 20, 80], trait: 'prudent', op: 'endure', tier: 'C' },
+  { name: '순유', alias: '공달', stats: [37, 20, 71], trait: 'cunning', op: 'chain', tier: 'C' }
 ];
 
 // 개성·사상: 선택 항목 / 전법: 선택 불가, 육성 중 무작위 획득
@@ -1356,6 +1365,11 @@ function renderSession() {
 
 // 한 번의 행동 결과를 결정
 function resolve(opt) {
+  if (CFG.guarantee[train.n] && train.act === CFG.actionsPerSession - 1 && !train.hit) {   // 보장: 마지막 행동까지 능력치가 안 올랐다면 반드시 오름
+    let r = Math.random();
+    for (const [si, w] of Object.entries(opt.to)) { if (r < w) return { type: 'stat', stat: +si }; r -= w; }
+    const k = Object.keys(opt.to); return { type: 'stat', stat: +k[k.length - 1] };
+  }
   const bonus = pickedItem('ideology').grow || {};
   const sb = CFG.growBonus[train.n] || { stat: 0 };      // 이번 육성 회차 보정
   const gain = opt.gain > 0 ? opt.gain + sb.stat : 0;
@@ -1371,12 +1385,13 @@ function resolve(opt) {
 
 function act(opt) {
   if (train.busy) return; train.busy = true;
+  if (train.act === 0) train.hit = 0;                    // 이번 육성 회차에 능력치가 오른 횟수
   const out = resolve(opt);
   let msg = '이번에는 뚜렷한 소득이 없었습니다.', cls = '', up = null, addN = 0, got = null;
   const prev = train.stats.slice();
   if (out.type === 'stat') {
     const cur = train.stats[out.stat], add = Math.min(CFG.gain, CFG.growMax - cur);
-    if (add > 0) { train.stats[out.stat] = cur + add; up = out.stat; addN = add; msg = STAT_NAMES[out.stat] + '이 올랐습니다. (+' + add + ')'; cls = 'gain'; }
+    if (add > 0) { train.stats[out.stat] = cur + add; up = out.stat; addN = add; train.hit++; msg = STAT_NAMES[out.stat] + '이 올랐습니다. (+' + add + ')'; cls = 'gain'; }
   }
   // 전법: 능력치와 따로, 탭과 상관없이 우연히 (최대 2개, 가득 차면 판정 안 함)
   if (train.ops.length < CFG.maxOps && Math.random() < CFG.opEvent[train.n]) {
@@ -1660,14 +1675,23 @@ function makeNpcs(r) {
   const seen = new Set(), pool = NPC_TABLE.filter(n => n.name !== pName() && !seen.has(n.name) && seen.add(n.name));
   const pick = shuffle(pool).slice(0, 31);
   while (pick.length < 31) pick.push({ name: '무명 장수 ' + (pick.length + 1), stats: [45, 45, 45], trait: TABLES.trait.items[0].id, op: '' });
-  const [bn, bs] = TOUR.statBonus[r - 1], oc = TOUR.opChance[r - 1];
-  return pick.map(n => ({
-    name: n.name,
-    stats: n.stats.map(v => clamp(v + stepAdd(n.tier === 'S' ? bs : bn), CFG.min, 100)),
-    trait: n.trait,
-    ops: n.op && Math.random() < oc ? [n.op] : [],
-    forfeit: false
-  }));
+  const [bn, bs] = TOUR.statBonus[r - 1], oc = TOUR.opChance[r - 1], so = TOUR.secondOp[r - 1] || 0;
+  return pick.map(n => {
+    const ops = n.op && Math.random() < oc ? [n.op] : [];
+    if (ops.length && Math.random() < so) {                          // 두 번째 전법: 표의 전법과 겹치지 않게 무작위
+      const free = OPS.filter(o => o.id !== n.op);
+      ops.push(free[Math.floor(Math.random() * free.length)].id);
+    }
+    return {
+      name: n.name,
+      alias: n.alias || '',
+      stats: n.stats.map(v => clamp(v + stepAdd(n.tier === 'S' ? bs : bn), CFG.min, 100)),
+      trait: n.trait,
+      ops,
+      opObjs: ops.map(id => OPS.find(o => o.id === id)),
+      forfeit: false
+    };
+  });
 }
 function playerFighter() {
   const it = train.item, add = (it && it.eff.stat) || [0, 0, 0];
@@ -1701,14 +1725,18 @@ function fighterBox(f, side) {
   else face.textContent = f.name[0];
   const fb = el('div', 'facebox'), bub = el('div', 'bubble'); bub.hidden = true; bub.setAttribute('role', 'status');
   fb.append(face, el('div', 'fx-layer'), bub);
-  box.append(fb, el('b', null, f.name), ...(f.alias ? [el('small', null, '자 ' + f.alias)] : []),
-    statLine(f.stats),
-    el('small', null, '개성 ' + traitName(f.trait)), ...(f.itemName ? [el('small', null, '장비 ' + f.itemName)] : []));
-  if (f.me && f.opObjs && f.opObjs.length) {                    // 내 전법: 눌러서 효과 보기
-    const row = el('div', 'chips'); f.opObjs.forEach(o => row.appendChild(opChip(o, false))); box.appendChild(row);
-  }
+  // 두 장수의 같은 줄(이름·능력치·체력바 …)이 위아래로 정확히 맞도록, 항상 같은 9줄 구조로 만든다 (내용이 없는 줄은 빈 칸으로 둠)
+  const ph = () => el('div', 'ph');
+  const row = el('div', 'chips');
+  if (f.opObjs && f.opObjs.length) f.opObjs.forEach(o => row.appendChild(opChip(o, false)));      // 가진 전법 (나·상대 모두): 눌러서 효과 보기
   const bar = el('div', 'hpbar'); bar.appendChild(el('i'));
-  box.append(bar, el('div', 'hpnum', maxHpOf(f) + ' / ' + maxHpOf(f)));
+  box.append(fb, el('b', null, f.name),
+    f.alias ? el('small', null, '자 ' + f.alias) : ph(),
+    statLine(f.stats),
+    el('small', null, '개성 ' + traitName(f.trait)),
+    f.itemName ? el('small', null, '장비 ' + f.itemName) : ph(),
+    row.children.length ? row : ph(),
+    bar, el('div', 'hpnum', maxHpOf(f) + ' / ' + maxHpOf(f)));
   return box;
 }
 function matchCard(p) {
