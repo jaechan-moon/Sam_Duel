@@ -20,7 +20,7 @@ const TOP_OPEN = 10;                           // 이 순위까지만 장비·�
 // 정규화(공백·기호 제거, 소문자, 비슷한 글자 통일) 후 금지어가 들어 있으면 거절. 운영하면서 계속 늘립니다.
 const BAD_WORDS = [
   '시발', '씨발', '씨팔', '시팔', '쉬발', '씹', '병신', '븅신', '개새', '새끼', '쌔끼', '좆', '좇', '존나', '졸라', '지랄', '염병', '닥쳐', '꺼져',
-  '니미', '니엄마', '느금', '느그', '애미', '애비', '엠창', '엄창', '창녀', '창년', '걸레', '화냥', '보지', '자지', '섹스', '섹쓰', '야동', '강간', '자위', '성기', '페니스',
+  '니미', '니엄마', '느금', '느그', '애미', '애비', '엠창', '엄창', '창녀', '창년', '걸레', '화냥', '보지', '자지', '섹스', '섹쓰', '야동', '강간', '자위', '페니스',
   '한남', '김치녀', '메갈', '일베', '노무', '재명', '대깨', '틀딱', '장애', '맘충', '짱깨', '쪽바리', '쪽발', '깜둥', '흑형',
   '히틀러', '나치', '테러', '자살', '죽어', '뒤져', '디져', '뒈져',
   'fuck', 'fuk', 'shit', 'bitch', 'sex', 'dick', 'cock', 'pussy', 'porn', 'nigg', 'fag', 'cunt', 'rape', 'nazi', 'asshole', 'whore', 'slut', 'admin',
@@ -85,8 +85,15 @@ function validate(b) {
 
   // 성향·장비 목록
   const idRe = /^[a-z0-9_]{1,24}$/;
-  const list = (v, max) => Array.isArray(v) && v.length <= max && v.every(x => typeof x === 'string' && idRe.test(x)) && new Set(v).size === v.length;
-  if (!list(b.ops, 6) || !list(b.items, 2)) return '전법·장비 기록이 올바르지 않습니다.';
+  // 전법·장비는 겹치거나 많으면 거절하지 않고 정리해서 받음 (예전 화면이 남은 폰 등에서 온 기록도 살리기 위해). 이름 형식이 이상할 때만 거절
+  const tidy = (v, max) => {
+    if (v === undefined || v === null) return [];
+    if (!Array.isArray(v) || !v.every(x => typeof x === 'string' && idRe.test(x))) return null;
+    return [...new Set(v)].slice(0, max);
+  };
+  const ops = tidy(b.ops, 7), items = tidy(b.items, 2);
+  if (!ops) return '전법 기록의 형식이 올바르지 않습니다.';
+  if (!items) return '장비 기록의 형식이 올바르지 않습니다.';
   if (!Array.isArray(b.cons) || b.cons.length > 3 || !b.cons.every(x => typeof x === 'string' && idRe.test(x))) return '소모품 기록이 올바르지 않습니다.';
   if (typeof b.trait !== 'string' || !idRe.test(b.trait) || typeof b.ideology !== 'string' || !idRe.test(b.ideology)) return '개성·사상 기록이 올바르지 않습니다.';
   if (b.gender !== 'male' && b.gender !== 'female') return '성별 기록이 올바르지 않습니다.';
@@ -98,7 +105,7 @@ function validate(b) {
     challenge_score: chal, challenge_round: challengeRound,
     placements: pl.map(p => ({ round: p.round, place: p.place })),
     stats: st, trait: b.trait, ideology: b.ideology, gender: b.gender,
-    ops: b.ops, items: b.items, cons: b.cons, version: b.version,
+    ops, items, cons: b.cons, version: b.version,
   };
 }
 
