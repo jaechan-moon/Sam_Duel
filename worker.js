@@ -9,6 +9,7 @@ const STAGE_PTS = { '32강 탈락': 0, '16강 탈락': 1, '8강 탈락': 3, '4�
 const STAGE_WINS = { '32강 탈락': 0, '16강 탈락': 1, '8강 탈락': 2, '4강 탈락': 3, '준우승': 4, '우승': 5 };
 const GOLD_WIN = [50, 100, 100, 150, 300];     // 게임 설정과 같아야 함
 const START_GOLD = 100;
+const FAIL_BONUS_GOLD = 60;                   // 게임 설정(failBonusGold)과 같아야 함
 const GOLD_ROUNDS = [1, 2];                    // 골드를 받는 대회 회차
 const BASE_ROUNDS = 3;
 const EXTRA_MAX = 10;
@@ -72,6 +73,7 @@ function validate(b) {
   if (!Number.isInteger(gl) || gl < 0) return '골드 기록이 올바르지 않습니다.';
   let maxGold = START_GOLD;
   GOLD_ROUNDS.forEach(r => { maxGold += earnedGold(pl[r - 1].place); });
+  maxGold += FAIL_BONUS_GOLD;                    // 육성 실패 보정 골드 (한 번)
   if (gl > maxGold) return '골드 기록이 올바르지 않습니다.';
   const goldScore = Math.floor(gl / GOLD_PER_POINT);
 
@@ -80,7 +82,7 @@ function validate(b) {
   if (!Array.isArray(st) || st.length !== 3 || !st.every(v => Number.isInteger(v) && v >= 20 && v <= 100)) return '능력치 기록이 올바르지 않습니다.';
   const sum = st[0] + st[1] + st[2];
   const extraSessions = Math.max(0, lastRound - BASE_ROUNDS);
-  const maxSum = 160 + 3 * (15 + 9 * extraSessions);
+  const maxSum = 160 + 3 * (20 + 9 * extraSessions);   // 육성 1회 최대 +12 (행동 4번 × (2+덤 1)) × 5회 = 60
   if (sum > Math.min(300, maxSum) || sum < 60) return '능력치 기록이 올바르지 않습니다.';
 
   // 성향·장비 목록
