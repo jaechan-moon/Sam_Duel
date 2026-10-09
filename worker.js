@@ -130,7 +130,7 @@ async function submit(request, env) {
   if (total >= MAX_PER_NICK_PER_DAY) return json({ ok: false, error: '같은 이름으로는 하루에 ' + MAX_PER_NICK_PER_DAY + '번까지만 등록할 수 있어요.' }, 429);
 
   const ins = await sb(env, 'scores', { method: 'POST', body: JSON.stringify(row), headers: { Prefer: 'return=representation' } });
-  if (!ins.ok) return json({ ok: false, error: '저장에 실패했습니다. [진단 ' + ins.status + '] ' + (await ins.text()).slice(0, 200) }, 502);
+  if (!ins.ok) return json({ ok: false, error: '저장에 실패했습니다. 잠시 뒤 다시 시도해 주세요.' }, 502);
   const saved = (await ins.json())[0];
 
   // 내 순위 = 나보다 앞선 기록 수 + 1
@@ -147,7 +147,7 @@ async function ranking(request, env) {
   const limit = Math.min(100, Math.max(1, Number(u.searchParams.get('limit')) || 50));
   const cols = 'nickname,total_score,match_score,gold_score,gold_left,challenge_score,challenge_round,placements,created_at,stats,trait,ideology,gender,ops,items,cons';
   const r = await sb(env, 'scores?select=' + cols + '&order=total_score.desc,challenge_score.desc,created_at.asc&limit=' + limit);
-  if (!r.ok) return json({ ok: false, error: '순위를 불러오지 못했습니다. [진단 ' + r.status + '] ' + (await r.text()).slice(0, 200) }, 502);
+  if (!r.ok) return json({ ok: false, error: '순위를 불러오지 못했습니다.' }, 502);
   const rows = await r.json();
   const out = rows.map((x, i) => {
     const o = { rank: i + 1, nickname: x.nickname, total_score: x.total_score, match_score: x.match_score, gold_score: x.gold_score,
