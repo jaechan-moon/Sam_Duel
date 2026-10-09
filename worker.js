@@ -178,7 +178,12 @@ export default {
     if (p === '/api/submit' || p === '/api/ranking') {
       if (!env.SUPABASE_URL || !env.SUPABASE_SECRET_KEY) return json({ ok: false, error: '서버 설정이 아직 끝나지 않았습니다.' }, 500);
       try {
-        if (p === '/api/submit') return json({ ok: false, error: '지금은 얼리 액세스 기간이라 랭킹에 등록할 수 없습니다.' }, 403);   // 얼리 액세스 동안 등록 차단 (기존 기록 조회는 유지)
+        if (p === '/api/submit') {
+          // 라이트 버전(/lite/)에서 온 요청만 랭킹 등록 허용, 얼리 액세스(메인)는 계속 차단
+          const ref = request.headers.get('Referer') || '';
+          if (!ref.includes('/lite')) return json({ ok: false, error: '지금은 얼리 액세스 기간이라 랭킹에 등록할 수 없습니다.' }, 403);
+          return request.method === 'POST' ? await submit(request, env) : json({ ok: false, error: 'POST만 가능합니다.' }, 405);
+        }   // 얼리 액세스 동안 등록 차단 (기존 기록 조회는 유지)
         return request.method === 'GET' ? await ranking(request, env) : json({ ok: false, error: 'GET만 가능합니다.' }, 405);
       } catch (e) {
         return json({ ok: false, error: '서버 오류가 났습니다.' }, 500);
