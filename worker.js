@@ -1,4 +1,5 @@
 // 삼국지 일기토 - 서버 코드 (Cloudflare Worker)
+//  모드별 순위표: 라이트(/lite)와 로그라이크(메인)는 서로 다른 순위표 (scores.mode 칸)
 //  POST /api/submit  : 기록 등록 (범위 검사, 닉네임 필터, 점수는 서버가 다시 계산)
 //  GET  /api/ranking : 순위 조회 (1~10위만 장비·전법 공개)
 //  GET  /api/health  : 연결 확인
@@ -111,6 +112,16 @@ function validate(b) {
   };
 }
 
+// ---------- 모드(라이트 / 로그라이크) ----------
+// 라이트(/lite)와 로그라이크(메인)는 순위표를 따로 씁니다. 표의 mode 칸이 'lite' 또는 'roguelike'.
+// 주소에 mode=lite|roguelike 가 있으면 그것을, 없으면 요청을 보낸 화면(Referer)으로 판단합니다.
+function modeOf(request, url) {
+  const q = url.searchParams.get('mode');
+  if (q === 'lite' || q === 'roguelike') return q;
+  const ref = request.headers.get('Referer') || '';
+  return ref.includes('/lite') ? 'lite' : 'roguelike';
+}
+
 // ---------- Supabase ----------
 function sb(env, path, init = {}) {
   return fetch(env.SUPABASE_URL + '/rest/v1/' + path, {
@@ -123,17 +134,18 @@ const json = (obj, status = 200) => new Response(JSON.stringify(obj), {
   status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
 });
 
-async function submit(request, env) {
+async function submit(request, env, mode) {
   const len = Number(request.headers.get('content-length') || 0);
   if (len > 4096) return json({ ok: false, error: '요청이 너무 큽니다.' }, 413);
   let body;
   try { body = JSON.parse(await request.text()); } catch { return json({ ok: false, error: '잘못된 요청입니다.' }, 400); }
   const row = validate(body);
   if (typeof row === 'string') return json({ ok: false, error: row }, 400);
+  row.mode = mode;
 
   // 같은 이름으로 하루에 너무 많이 올리는 것을 막음
   const since = new Date(Date.now() - 86400000).toISOString();
-  const cnt = await sb(env, 'scores?select=id&limit=1&nickname=eq.' + encodeURIComponent(row.nickname) + '&created_at=gte.' + encodeURIComponent(since),
+  const cnt = await sb(env, 'scores?select=id&limit=1&mode=eq.' + mode + '&nickname=eq.' + encodeURIComponent(row.nickname) + '&created_at=gte.' + encodeURIComponent(since),
     { headers: { Prefer: 'count=exact' } });
   const total = Number((cnt.headers.get('content-range') || '').split('/')[1] || 0);
   if (total >= MAX_PER_NICK_PER_DAY) return json({ ok: false, error: '같은 이름으로는 하루에 ' + MAX_PER_NICK_PER_DAY + '번까지만 등록할 수 있어요.' }, 429);
@@ -146,16 +158,16 @@ async function submit(request, env) {
   const T = row.total_score, C = row.challenge_score, TS = encodeURIComponent(saved.created_at);
   const or = encodeURIComponent('(total_score.gt.' + T + ',and(total_score.eq.' + T + ',challenge_score.gt.' + C +
     '),and(total_score.eq.' + T + ',challenge_score.eq.' + C + ',created_at.lt.' + saved.created_at + '))');
-  const r = await sb(env, 'scores?select=id&limit=1&or=' + or, { headers: { Prefer: 'count=exact' } });
+  const r = await sb(env, 'scores?select=id&limit=1&mode=eq.' + mode + '&or=' + or, { headers: { Prefer: 'count=exact' } });
   const ahead = Number((r.headers.get('content-range') || '').split('/')[1] || 0);
   return json({ ok: true, rank: ahead + 1, total_score: T, match_score: row.match_score, gold_score: row.gold_score, challenge_score: C, challenge_round: row.challenge_round });
 }
 
-async function ranking(request, env) {
+async function ranking(request, env, mode) {
   const u = new URL(request.url);
   const limit = Math.min(100, Math.max(1, Number(u.searchParams.get('limit')) || 50));
   const cols = 'nickname,total_score,match_score,gold_score,gold_left,challenge_score,challenge_round,placements,created_at,stats,trait,ideology,gender,ops,items,cons';
-  const r = await sb(env, 'scores?select=' + cols + '&order=total_score.desc,challenge_score.desc,created_at.asc&limit=' + limit);
+  const r = await sb(env, 'scores?select=' + cols + '&mode=eq.' + mode + '&order=total_score.desc,challenge_score.desc,created_at.asc&limit=' + limit);
   if (!r.ok) return json({ ok: false, error: '순위를 불러오지 못했습니다.' }, 502);
   const rows = await r.json();
   const out = rows.map((x, i) => {
@@ -178,13 +190,13 @@ export default {
     if (p === '/api/submit' || p === '/api/ranking') {
       if (!env.SUPABASE_URL || !env.SUPABASE_SECRET_KEY) return json({ ok: false, error: '서버 설정이 아직 끝나지 않았습니다.' }, 500);
       try {
+        const mode = modeOf(request, url);
         if (p === '/api/submit') {
-          // 라이트 버전(/lite/)에서 온 요청만 랭킹 등록 허용, 얼리 액세스(메인)는 계속 차단
-          const ref = request.headers.get('Referer') || '';
-          if (!ref.includes('/lite')) return json({ ok: false, error: '지금은 얼리 액세스 기간이라 랭킹에 등록할 수 없습니다.' }, 403);
-          return request.method === 'POST' ? await submit(request, env) : json({ ok: false, error: 'POST만 가능합니다.' }, 405);
-        }   // 얼리 액세스 동안 등록 차단 (기존 기록 조회는 유지)
-        return request.method === 'GET' ? await ranking(request, env) : json({ ok: false, error: 'GET만 가능합니다.' }, 405);
+          // 지금은 라이트(/lite)에서 온 요청만 랭킹 등록 허용. 로그라이크(메인)는 정식 규칙이 만들어질 때까지 차단
+          if (!(request.headers.get('Referer') || '').includes('/lite')) return json({ ok: false, error: '지금은 얼리 액세스 기간이라 랭킹에 등록할 수 없습니다.' }, 403);
+          return request.method === 'POST' ? await submit(request, env, 'lite') : json({ ok: false, error: 'POST만 가능합니다.' }, 405);
+        }
+        return request.method === 'GET' ? await ranking(request, env, mode) : json({ ok: false, error: 'GET만 가능합니다.' }, 405);
       } catch (e) {
         return json({ ok: false, error: '서버 오류가 났습니다.' }, 500);
       }
