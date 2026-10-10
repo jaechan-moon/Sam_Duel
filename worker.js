@@ -11,9 +11,9 @@ const STAGE_WINS = { '32강 탈락': 0, '16강 탈락': 1, '8강 탈락': 2, '4�
 const GOLD_WIN = [50, 100, 100, 150, 300];     // 게임 설정과 같아야 함
 const START_GOLD = 100;
 const FAIL_BONUS_GOLD = 60;                   // 게임 설정(failBonusGold)과 같아야 함
-const GOLD_ROUNDS = [1, 2, 3, 4];                    // 골드를 받는 대회 회차
-const BASE_ROUNDS = 5;
-const CARD_GOLD_MAX = 5 * 80 + 30;             // 사건 카드 5장(최대 +80) + 금의환향 +30
+const GOLD_ROUNDS = [1, 2, 3];                    // 골드를 받는 대회 회차
+const BASE_ROUNDS = 4;
+const CARD_GOLD_MAX = 4 * 80 + 30;             // 사건 카드 4장(최대 +80) + 금의환향 +30
 const EXTRA_MAX = 10;
 const GOLD_PER_POINT = 200;
 const MAX_PER_NICK_PER_DAY = 5;
@@ -68,7 +68,7 @@ function validate(b) {
     const p = pl[i];
     if (!p || p.round !== i + 1 || !(p.place in STAGE_PTS)) return '대회 기록이 올바르지 않습니다.';
     if (i + 1 > BASE_ROUNDS) {
-      if (i > BASE_ROUNDS && pl[i - 1].place !== '우승') return '대회 기록이 올바르지 않습니다.';   // 7회차부터는 앞 도전 회차를 이겨야 함
+      if (i > BASE_ROUNDS && pl[i - 1].place !== '우승') return '대회 기록이 올바르지 않습니다.';   // 6회차부터는 앞 도전 회차를 이겨야 함
       chal += STAGE_PTS[p.place];
     } else match += STAGE_PTS[p.place];
     lastRound = i + 1;
@@ -90,8 +90,8 @@ function validate(b) {
   if (!Array.isArray(st) || st.length !== 3 || !st.every(v => Number.isInteger(v) && v >= 20 && v <= 100)) return '능력치 기록이 올바르지 않습니다.';
   const sum = st[0] + st[1] + st[2];
   const extraSessions = Math.max(0, lastRound - BASE_ROUNDS);
-  const maxSum = 160 + 3 * (28 + 9 * extraSessions);   // 육성 1회 최대 +12 (행동 4번 × (2+덤 1)) × 7회 = 84 (+12: 사건 카드 5장 +5, 명성 혜택 육성 7회 +7)
-  if (sum > Math.min(300, maxSum + 12) || sum < 60) return '능력치 기록이 올바르지 않습니다.';
+  const maxSum = 160 + 54 + 27 * extraSessions;   // 육성 1회 최대 +9 (행동 3번 × (2+덤 1)) × 6회 = 54 (여유는 아래 +10: 사건 카드·명성 혜택)
+  if (sum > Math.min(300, maxSum + 10) || sum < 60) return '능력치 기록이 올바르지 않습니다.';
 
   // 성향·장비 목록
   const idRe = /^[a-z0-9_]{1,24}$/;
