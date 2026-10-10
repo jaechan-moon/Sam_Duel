@@ -1,5 +1,7 @@
+.git
+*.xlsx
+index_원본.html
 worker.js
 wrangler.jsonc
 .assetsignore
-*.xlsx
-index_원본.html
+.gitkeep
