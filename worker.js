@@ -11,11 +11,17 @@ const STAGE_WINS = { '32강 탈락': 0, '16강 탈락': 1, '8강 탈락': 2, '4�
 const GOLD_WIN = [50, 100, 100, 150, 300];     // 게임 설정과 같아야 함
 const START_GOLD = 100;
 const FAIL_BONUS_GOLD = 60;                   // 게임 설정(failBonusGold)과 같아야 함
-const GOLD_ROUNDS = [1, 2];                    // 골드를 받는 대회 회차
-const BASE_ROUNDS = 3;
+const GOLD_ROUNDS = [1, 2, 3, 4];                    // 골드를 받는 대회 회차
+const BASE_ROUNDS = 5;
+const CARD_GOLD_MAX = 5 * 80 + 30;             // 사건 카드 5장(최대 +80) + 금의환향 +30
 const EXTRA_MAX = 10;
 const GOLD_PER_POINT = 200;
 const MAX_PER_NICK_PER_DAY = 5;
+const ORIGIN_IDS = ['jing', 'yi', 'xu', 'ji', 'liang', 'jiang', 'you', 'yu'];     // 출신지 (게임과 같아야 함)
+const TALENT_NAMES = ['군을 이끄는 상', '만부부당의 기질', '와룡의 소질', '선봉에 선 맹장', '군사의 그릇', '지용겸비', '만능의 재목', '한 길만 판 사내'];
+const TALENT_CURVES = ['늦게 피는', '일찍 핀', '파란만장한', '한결같은'];
+const TALENTS = new Set(TALENT_CURVES.flatMap(c => TALENT_NAMES.map(n => c + ' ' + n)));
+const TITLE_MAX_ID = 20;
 const TOP_OPEN = 10;                           // 이 순위까지만 장비·전법 공개
 
 // ---------- 닉네임 필터 ----------
@@ -62,7 +68,7 @@ function validate(b) {
     const p = pl[i];
     if (!p || p.round !== i + 1 || !(p.place in STAGE_PTS)) return '대회 기록이 올바르지 않습니다.';
     if (i + 1 > BASE_ROUNDS) {
-      if (i > BASE_ROUNDS && pl[i - 1].place !== '우승') return '대회 기록이 올바르지 않습니다.';   // 5회차부터는 앞 도전 회차를 이겨야 함
+      if (i > BASE_ROUNDS && pl[i - 1].place !== '우승') return '대회 기록이 올바르지 않습니다.';   // 7회차부터는 앞 도전 회차를 이겨야 함
       chal += STAGE_PTS[p.place];
     } else match += STAGE_PTS[p.place];
     lastRound = i + 1;
@@ -74,6 +80,7 @@ function validate(b) {
   if (!Number.isInteger(gl) || gl < 0) return '골드 기록이 올바르지 않습니다.';
   let maxGold = START_GOLD;
   GOLD_ROUNDS.forEach(r => { maxGold += earnedGold(pl[r - 1].place); });
+  maxGold += CARD_GOLD_MAX;                      // 사건 카드·금의환향으로 얻을 수 있는 골드의 최대치
   maxGold += FAIL_BONUS_GOLD;                    // 육성 실패 보정 골드 (한 번)
   if (gl > maxGold) return '골드 기록이 올바르지 않습니다.';
   const goldScore = Math.floor(gl / GOLD_PER_POINT);
@@ -83,8 +90,8 @@ function validate(b) {
   if (!Array.isArray(st) || st.length !== 3 || !st.every(v => Number.isInteger(v) && v >= 20 && v <= 100)) return '능력치 기록이 올바르지 않습니다.';
   const sum = st[0] + st[1] + st[2];
   const extraSessions = Math.max(0, lastRound - BASE_ROUNDS);
-  const maxSum = 160 + 3 * (20 + 9 * extraSessions);   // 육성 1회 최대 +12 (행동 4번 × (2+덤 1)) × 5회 = 60
-  if (sum > Math.min(300, maxSum) || sum < 60) return '능력치 기록이 올바르지 않습니다.';
+  const maxSum = 160 + 3 * (28 + 9 * extraSessions);   // 육성 1회 최대 +12 (행동 4번 × (2+덤 1)) × 7회 = 84 (+12: 사건 카드 5장 +5, 명성 혜택 육성 7회 +7)
+  if (sum > Math.min(300, maxSum + 12) || sum < 60) return '능력치 기록이 올바르지 않습니다.';
 
   // 성향·장비 목록
   const idRe = /^[a-z0-9_]{1,24}$/;
@@ -102,7 +109,18 @@ function validate(b) {
   if (b.gender !== 'male' && b.gender !== 'female') return '성별 기록이 올바르지 않습니다.';
   if (typeof b.version !== 'string' || b.version.length < 1 || b.version.length > VERSION_MAX) return '버전 기록이 올바르지 않습니다.';
 
+  // 꾸미기 정보(점수와 무관, 없어도 됨): 출신지·명성 단계·숨은 재능·칭호
+  if (b.origin != null && !ORIGIN_IDS.includes(b.origin)) return '출신지 기록이 올바르지 않습니다.';
+  if (b.fame_stage != null && !(Number.isInteger(b.fame_stage) && b.fame_stage >= 0 && b.fame_stage <= 4)) return '명성 기록이 올바르지 않습니다.';
+  if (b.talent != null && !TALENTS.has(b.talent)) return '재능 기록이 올바르지 않습니다.';
+  if (b.talent_grade != null && !['S', 'A', 'B', 'C'].includes(b.talent_grade)) return '재능 기록이 올바르지 않습니다.';
+  let titles = null;
+  if (b.titles != null) {
+    if (!Array.isArray(b.titles) || b.titles.length > TITLE_MAX_ID || !b.titles.every(t => Number.isInteger(t) && t >= 1 && t <= TITLE_MAX_ID)) return '칭호 기록이 올바르지 않습니다.';
+    titles = [...new Set(b.titles)].sort((x, y) => x - y);
+  }
   return {
+    origin: b.origin ?? null, fame_stage: b.fame_stage ?? null, talent: b.talent ?? null, talent_grade: b.talent_grade ?? null, titles,
     nickname: nick,
     total_score: match + goldScore, match_score: match, gold_score: goldScore, gold_left: gl,
     challenge_score: chal, challenge_round: challengeRound,
@@ -156,8 +174,10 @@ async function submit(request, env, mode) {
 
   // 내 순위 = 나보다 앞선 기록 수 + 1
   const T = row.total_score, C = row.challenge_score, TS = encodeURIComponent(saved.created_at);
-  const or = encodeURIComponent('(total_score.gt.' + T + ',and(total_score.eq.' + T + ',challenge_score.gt.' + C +
-    '),and(total_score.eq.' + T + ',challenge_score.eq.' + C + ',created_at.lt.' + saved.created_at + '))');
+  const R = row.challenge_round, G = row.gold_left, eqT = 'total_score.eq.' + T, eqR = eqT + ',challenge_round.eq.' + R, eqC = eqR + ',challenge_score.eq.' + C;
+  // 순위: 총점 → 도전 도달 회차 → 도전 점수 → 남은 골드 → 먼저 등록
+  const or = encodeURIComponent('(total_score.gt.' + T + ',and(' + eqT + ',challenge_round.gt.' + R + '),and(' + eqR + ',challenge_score.gt.' + C +
+    '),and(' + eqC + ',gold_left.gt.' + G + '),and(' + eqC + ',gold_left.eq.' + G + ',created_at.lt.' + saved.created_at + '))');
   const r = await sb(env, 'scores?select=id&limit=1&mode=eq.' + mode + '&or=' + or, { headers: { Prefer: 'count=exact' } });
   const ahead = Number((r.headers.get('content-range') || '').split('/')[1] || 0);
   return json({ ok: true, rank: ahead + 1, total_score: T, match_score: row.match_score, gold_score: row.gold_score, challenge_score: C, challenge_round: row.challenge_round });
@@ -166,13 +186,14 @@ async function submit(request, env, mode) {
 async function ranking(request, env, mode) {
   const u = new URL(request.url);
   const limit = Math.min(100, Math.max(1, Number(u.searchParams.get('limit')) || 50));
-  const cols = 'nickname,total_score,match_score,gold_score,gold_left,challenge_score,challenge_round,placements,created_at,stats,trait,ideology,gender,ops,items,cons';
-  const r = await sb(env, 'scores?select=' + cols + '&mode=eq.' + mode + '&order=total_score.desc,challenge_score.desc,created_at.asc&limit=' + limit);
+  const cols = 'nickname,total_score,match_score,gold_score,gold_left,challenge_score,challenge_round,placements,created_at,stats,trait,ideology,gender,ops,items,cons,origin,fame_stage,talent,talent_grade,titles';
+  const r = await sb(env, 'scores?select=' + cols + '&mode=eq.' + mode + '&order=total_score.desc,challenge_round.desc,challenge_score.desc,gold_left.desc,created_at.asc&limit=' + limit);
   if (!r.ok) return json({ ok: false, error: '순위를 불러오지 못했습니다.' }, 502);
   const rows = await r.json();
   const out = rows.map((x, i) => {
     const o = { rank: i + 1, nickname: x.nickname, total_score: x.total_score, match_score: x.match_score, gold_score: x.gold_score,
-      challenge_score: x.challenge_score, challenge_round: x.challenge_round, placements: x.placements, created_at: x.created_at };
+      challenge_score: x.challenge_score, challenge_round: x.challenge_round, placements: x.placements, created_at: x.created_at,
+      origin: x.origin, fame_stage: x.fame_stage, talent: x.talent, talent_grade: x.talent_grade, titles: x.titles };
     if (i < TOP_OPEN) Object.assign(o, { gold_left: x.gold_left, stats: x.stats, trait: x.trait, ideology: x.ideology, gender: x.gender, ops: x.ops, items: x.items, cons: x.cons });
     return o;
   });
